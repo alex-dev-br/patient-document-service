@@ -38,7 +38,7 @@ build/
 .env.*.local
 
 ### Application storage ###
-storage/
+/storage/
 
 ### Logs ###
 logs/
