@@ -1,5 +1,7 @@
 package br.com.fiap.techchallenge.patientdocument.infrastructure.persistence.document;
 
+import br.com.fiap.techchallenge.patientdocument.application.common.pagination.PageQuery;
+import br.com.fiap.techchallenge.patientdocument.application.common.pagination.PagedResult;
 import br.com.fiap.techchallenge.patientdocument.application.document.gateway.HealthDocumentGateway;
 import br.com.fiap.techchallenge.patientdocument.application.document.query.HealthDocumentFilter;
 import br.com.fiap.techchallenge.patientdocument.domain.document.HealthDocument;
@@ -7,6 +9,8 @@ import jakarta.persistence.criteria.Predicate;
 import jakarta.persistence.criteria.Root;
 import jakarta.persistence.criteria.Subquery;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Component;
@@ -51,6 +55,41 @@ public class HealthDocumentGatewayImpl implements HealthDocumentGateway {
                 keywordEntities.stream()
                         .map(DocumentKeywordJpaEntity::getKeyword)
                         .toList()
+        );
+    }
+
+    @Override
+    public PagedResult<HealthDocument> findByPatientId(
+            UUID patientId,
+            HealthDocumentFilter filter,
+            PageQuery pageQuery
+    ) {
+        Specification<HealthDocumentJpaEntity> specification =
+                buildSpecification(patientId, filter);
+
+        PageRequest pageable = PageRequest.of(
+                pageQuery.page(),
+                pageQuery.size(),
+                Sort.by(Sort.Direction.DESC, "createdAt")
+        );
+
+        Page<HealthDocumentJpaEntity> entityPage =
+                healthDocumentJpaRepository.findAll(
+                        specification,
+                        pageable
+                );
+
+        List<HealthDocument> content =
+                toDomainList(entityPage.getContent());
+
+        return new PagedResult<>(
+                content,
+                entityPage.getNumber(),
+                entityPage.getSize(),
+                entityPage.getTotalElements(),
+                entityPage.getTotalPages(),
+                entityPage.isFirst(),
+                entityPage.isLast()
         );
     }
 

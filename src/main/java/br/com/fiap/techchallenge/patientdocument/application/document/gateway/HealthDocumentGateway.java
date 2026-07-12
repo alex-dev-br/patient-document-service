@@ -1,5 +1,7 @@
 package br.com.fiap.techchallenge.patientdocument.application.document.gateway;
 
+import br.com.fiap.techchallenge.patientdocument.application.common.pagination.PageQuery;
+import br.com.fiap.techchallenge.patientdocument.application.common.pagination.PagedResult;
 import br.com.fiap.techchallenge.patientdocument.application.document.query.HealthDocumentFilter;
 import br.com.fiap.techchallenge.patientdocument.domain.document.HealthDocument;
 
@@ -15,5 +17,14 @@ public interface HealthDocumentGateway {
 
     List<HealthDocument> findByPatientId(UUID patientId);
 
-    List<HealthDocument> findByPatientId(UUID patientId, HealthDocumentFilter filter);
+    List<HealthDocument> findByPatientId(
+            UUID patientId,
+            HealthDocumentFilter filter
+    );
+
+    PagedResult<HealthDocument> findByPatientId(
+            UUID patientId,
+            HealthDocumentFilter filter,
+            PageQuery pageQuery
+    );
 }

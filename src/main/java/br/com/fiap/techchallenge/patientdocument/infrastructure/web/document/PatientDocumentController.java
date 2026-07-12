@@ -12,6 +12,9 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
+import br.com.fiap.techchallenge.patientdocument.application.common.pagination.PageQuery;
+import br.com.fiap.techchallenge.patientdocument.application.common.pagination.PagedResult;
+import br.com.fiap.techchallenge.patientdocument.infrastructure.web.common.PagedResponse;
 
 import java.io.IOException;
 import java.net.URI;
@@ -58,14 +61,16 @@ public class PatientDocumentController {
     }
 
     @GetMapping("/patients/{patientId}/documents")
-    public ResponseEntity<List<HealthDocumentResponse>> listByPatient(
+    public ResponseEntity<PagedResponse<HealthDocumentResponse>> listByPatient(
             @PathVariable UUID patientId,
             @RequestParam(required = false) String documentType,
             @RequestParam(required = false) String specialty,
             @RequestParam(required = false) String status,
             @RequestParam(required = false) String keyword,
             @RequestParam(required = false) LocalDate startDate,
-            @RequestParam(required = false) LocalDate endDate
+            @RequestParam(required = false) LocalDate endDate,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size
     ) {
         HealthDocumentFilter filter = healthDocumentWebMapper.toFilter(
                 documentType,
@@ -76,10 +81,28 @@ public class PatientDocumentController {
                 endDate
         );
 
-        List<HealthDocumentResponse> response = listPatientDocumentsUseCase.execute(patientId, filter)
+        PagedResult<HealthDocument> result =
+                listPatientDocumentsUseCase.execute(
+                        patientId,
+                        filter,
+                        new PageQuery(page, size)
+                );
+
+        List<HealthDocumentResponse> content = result.content()
                 .stream()
                 .map(healthDocumentWebMapper::toResponse)
                 .toList();
+
+        PagedResponse<HealthDocumentResponse> response =
+                new PagedResponse<>(
+                        content,
+                        result.page(),
+                        result.size(),
+                        result.totalElements(),
+                        result.totalPages(),
+                        result.first(),
+                        result.last()
+                );
 
         return ResponseEntity.ok(response);
     }
