@@ -1,5 +1,6 @@
 package br.com.fiap.techchallenge.patientdocument.application.document.gateway;
 
+import br.com.fiap.techchallenge.patientdocument.application.document.query.HealthDocumentFilter;
 import br.com.fiap.techchallenge.patientdocument.domain.document.HealthDocument;
 
 import java.util.List;
@@ -13,4 +14,6 @@ public interface HealthDocumentGateway {
     Optional<HealthDocument> findById(UUID id);
 
     List<HealthDocument> findByPatientId(UUID patientId);
+
+    List<HealthDocument> findByPatientId(UUID patientId, HealthDocumentFilter filter);
 }
