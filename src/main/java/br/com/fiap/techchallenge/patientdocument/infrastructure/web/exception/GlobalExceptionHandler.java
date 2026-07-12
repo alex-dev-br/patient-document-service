@@ -42,4 +42,6 @@ public class GlobalExceptionHandler {
         problemDetail.setDetail(exception.getMessage());
         return problemDetail;
     }
+
+
 }
