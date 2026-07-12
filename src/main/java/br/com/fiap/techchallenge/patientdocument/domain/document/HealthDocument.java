@@ -190,4 +190,37 @@ public class HealthDocument {
     public List<String> getKeywords() {
         return keywords;
     }
+
+    public HealthDocument applyAiResult(
+            DocumentType documentType,
+            MedicalSpecialty specialty,
+            LocalDate documentDate,
+            String summary,
+            List<String> keywords,
+            BigDecimal confidence,
+            DocumentProcessingStatus status
+    ) {
+        DocumentProcessingStatus finalStatus = status == null
+                ? DocumentProcessingStatus.PROCESSED
+                : status;
+
+        return new HealthDocument(
+                this.id,
+                this.patientId,
+                this.originalFileName,
+                this.storedFileName,
+                this.storagePath,
+                this.contentType,
+                this.fileSize,
+                documentType,
+                specialty,
+                documentDate,
+                summary,
+                confidence,
+                finalStatus,
+                this.createdAt,
+                LocalDateTime.now(),
+                keywords
+        );
+    }
 }

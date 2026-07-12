@@ -1,7 +1,6 @@
 package br.com.fiap.techchallenge.patientdocument.infrastructure.web.document;
 
 import br.com.fiap.techchallenge.patientdocument.application.document.command.UploadHealthDocumentCommand;
-import br.com.fiap.techchallenge.patientdocument.application.document.usecase.FindHealthDocumentByIdUseCase;
 import br.com.fiap.techchallenge.patientdocument.application.document.usecase.GetPatientTimelineUseCase;
 import br.com.fiap.techchallenge.patientdocument.application.document.usecase.ListPatientDocumentsUseCase;
 import br.com.fiap.techchallenge.patientdocument.application.document.usecase.UploadHealthDocumentUseCase;
@@ -10,7 +9,11 @@ import br.com.fiap.techchallenge.patientdocument.domain.document.HealthDocument;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
@@ -20,12 +23,11 @@ import java.util.UUID;
 
 @RestController
 @RequiredArgsConstructor
-public class HealthDocumentController {
+public class PatientDocumentController {
 
     private final UploadHealthDocumentUseCase uploadHealthDocumentUseCase;
     private final ListPatientDocumentsUseCase listPatientDocumentsUseCase;
     private final GetPatientTimelineUseCase getPatientTimelineUseCase;
-    private final FindHealthDocumentByIdUseCase findHealthDocumentByIdUseCase;
     private final HealthDocumentWebMapper healthDocumentWebMapper;
 
     @PostMapping(
@@ -75,11 +77,5 @@ public class HealthDocumentController {
                 .toList();
 
         return ResponseEntity.ok(response);
-    }
-
-    @GetMapping("/documents/{documentId}")
-    public ResponseEntity<HealthDocumentResponse> findById(@PathVariable UUID documentId) {
-        HealthDocument document = findHealthDocumentByIdUseCase.execute(documentId);
-        return ResponseEntity.ok(healthDocumentWebMapper.toResponse(document));
     }
 }
