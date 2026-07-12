@@ -1,12 +1,14 @@
 package br.com.fiap.techchallenge.patientdocument.infrastructure.web.document;
 
 import br.com.fiap.techchallenge.patientdocument.application.document.command.UpdateDocumentAiResultCommand;
+import br.com.fiap.techchallenge.patientdocument.application.document.query.HealthDocumentFilter;
 import br.com.fiap.techchallenge.patientdocument.domain.document.DocumentProcessingStatus;
 import br.com.fiap.techchallenge.patientdocument.domain.document.DocumentType;
 import br.com.fiap.techchallenge.patientdocument.domain.document.HealthDocument;
 import br.com.fiap.techchallenge.patientdocument.domain.document.MedicalSpecialty;
 import org.springframework.stereotype.Component;
 
+import java.time.LocalDate;
 import java.util.UUID;
 
 @Component
@@ -85,4 +87,31 @@ public class HealthDocumentWebMapper {
     private String normalizeEnumValue(String value) {
         return value.trim().toUpperCase();
     }
+
+    public HealthDocumentFilter toFilter(
+            String documentType,
+            String specialty,
+            String status,
+            String keyword,
+            LocalDate startDate,
+            LocalDate endDate
+    ) {
+        return new HealthDocumentFilter(
+                toDocumentType(documentType),
+                toMedicalSpecialty(specialty),
+                toProcessingStatusOrNull(status),
+                keyword,
+                startDate,
+                endDate
+        );
+    }
+
+    private DocumentProcessingStatus toProcessingStatusOrNull(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+
+        return DocumentProcessingStatus.valueOf(normalizeEnumValue(value));
+    }
+
 }

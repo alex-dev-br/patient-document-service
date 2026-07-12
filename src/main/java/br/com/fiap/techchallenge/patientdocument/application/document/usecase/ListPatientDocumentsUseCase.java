@@ -1,6 +1,7 @@
 package br.com.fiap.techchallenge.patientdocument.application.document.usecase;
 
 import br.com.fiap.techchallenge.patientdocument.application.document.gateway.HealthDocumentGateway;
+import br.com.fiap.techchallenge.patientdocument.application.document.query.HealthDocumentFilter;
 import br.com.fiap.techchallenge.patientdocument.application.exception.ResourceNotFoundException;
 import br.com.fiap.techchallenge.patientdocument.application.patient.gateway.PatientGateway;
 import br.com.fiap.techchallenge.patientdocument.domain.document.HealthDocument;
@@ -20,9 +21,21 @@ public class ListPatientDocumentsUseCase {
 
     @Transactional(readOnly = true)
     public List<HealthDocument> execute(UUID patientId) {
+        return execute(patientId, HealthDocumentFilter.empty());
+    }
+
+    @Transactional(readOnly = true)
+    public List<HealthDocument> execute(UUID patientId, HealthDocumentFilter filter) {
         patientGateway.findById(patientId)
                 .orElseThrow(() -> new ResourceNotFoundException("Paciente não encontrado: " + patientId));
 
-        return healthDocumentGateway.findByPatientId(patientId);
+        if (filter != null && filter.hasInvalidDateRange()) {
+            throw new IllegalArgumentException("A data inicial não pode ser posterior à data final.");
+        }
+
+        return healthDocumentGateway.findByPatientId(
+                patientId,
+                filter == null ? HealthDocumentFilter.empty() : filter
+        );
     }
 }

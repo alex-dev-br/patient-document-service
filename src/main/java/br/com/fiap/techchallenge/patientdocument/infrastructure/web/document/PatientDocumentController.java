@@ -1,6 +1,7 @@
 package br.com.fiap.techchallenge.patientdocument.infrastructure.web.document;
 
 import br.com.fiap.techchallenge.patientdocument.application.document.command.UploadHealthDocumentCommand;
+import br.com.fiap.techchallenge.patientdocument.application.document.query.HealthDocumentFilter;
 import br.com.fiap.techchallenge.patientdocument.application.document.usecase.GetPatientTimelineUseCase;
 import br.com.fiap.techchallenge.patientdocument.application.document.usecase.ListPatientDocumentsUseCase;
 import br.com.fiap.techchallenge.patientdocument.application.document.usecase.UploadHealthDocumentUseCase;
@@ -9,15 +10,12 @@ import br.com.fiap.techchallenge.patientdocument.domain.document.HealthDocument;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.net.URI;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
 
@@ -60,8 +58,25 @@ public class PatientDocumentController {
     }
 
     @GetMapping("/patients/{patientId}/documents")
-    public ResponseEntity<List<HealthDocumentResponse>> listByPatient(@PathVariable UUID patientId) {
-        List<HealthDocumentResponse> response = listPatientDocumentsUseCase.execute(patientId)
+    public ResponseEntity<List<HealthDocumentResponse>> listByPatient(
+            @PathVariable UUID patientId,
+            @RequestParam(required = false) String documentType,
+            @RequestParam(required = false) String specialty,
+            @RequestParam(required = false) String status,
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) LocalDate startDate,
+            @RequestParam(required = false) LocalDate endDate
+    ) {
+        HealthDocumentFilter filter = healthDocumentWebMapper.toFilter(
+                documentType,
+                specialty,
+                status,
+                keyword,
+                startDate,
+                endDate
+        );
+
+        List<HealthDocumentResponse> response = listPatientDocumentsUseCase.execute(patientId, filter)
                 .stream()
                 .map(healthDocumentWebMapper::toResponse)
                 .toList();
