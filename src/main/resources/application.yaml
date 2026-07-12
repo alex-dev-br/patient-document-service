@@ -30,3 +30,17 @@ server:
 app:
   storage:
     local-path: ${APP_STORAGE_LOCAL_PATH:./storage/documents}
+
+springdoc:
+  packages-to-scan: br.com.fiap.techchallenge.patientdocument.infrastructure.web
+
+  api-docs:
+    path: /v3/api-docs
+
+  swagger-ui:
+    path: /swagger-ui.html
+    operations-sorter: method
+    tags-sorter: alpha
+    display-request-duration: true
+    try-it-out-enabled: true
+    doc-expansion: none
