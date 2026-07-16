@@ -8,16 +8,24 @@ import br.com.fiap.techchallenge.patientdocument.application.storage.command.Sto
 import br.com.fiap.techchallenge.patientdocument.application.storage.gateway.StorageGateway;
 import br.com.fiap.techchallenge.patientdocument.application.storage.result.StoredFile;
 import br.com.fiap.techchallenge.patientdocument.domain.document.HealthDocument;
-import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
-@RequiredArgsConstructor
 public class UploadHealthDocumentUseCase {
 
     private final PatientGateway patientGateway;
     private final StorageGateway storageGateway;
+
+    @Autowired
+    public UploadHealthDocumentUseCase(PatientGateway patientGateway, @Qualifier("nextcloudStorageGateway") StorageGateway storageGateway, HealthDocumentGateway healthDocumentGateway) {
+        this.patientGateway = patientGateway;
+        this.storageGateway = storageGateway;
+        this.healthDocumentGateway = healthDocumentGateway;
+    }
+
     private final HealthDocumentGateway healthDocumentGateway;
 
     @Transactional

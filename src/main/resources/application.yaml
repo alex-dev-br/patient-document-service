@@ -31,6 +31,11 @@ app:
   storage:
     local-path: ${APP_STORAGE_LOCAL_PATH:./storage/documents}
 
+nextcloud:
+  webdav:
+    url: http://${NEXTCLOUD_HOST:localhost}/remote.php/dav/files/${NEXTCLOUD_USER:nextcloud}/
+  username: ${NEXTCLOUD_USER:nextcloud}
+  app-password: ${NEXTCLOUD_PASSWORD:nextcloud}
 springdoc:
   packages-to-scan: br.com.fiap.techchallenge.patientdocument.infrastructure.web
 

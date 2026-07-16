@@ -6,18 +6,25 @@ import br.com.fiap.techchallenge.patientdocument.application.exception.ResourceN
 import br.com.fiap.techchallenge.patientdocument.application.storage.gateway.StorageGateway;
 import br.com.fiap.techchallenge.patientdocument.application.storage.result.StoredFileContent;
 import br.com.fiap.techchallenge.patientdocument.domain.document.HealthDocument;
-import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.UUID;
 
 @Service
-@RequiredArgsConstructor
 public class DownloadHealthDocumentFileUseCase {
 
     private final HealthDocumentGateway healthDocumentGateway;
     private final StorageGateway storageGateway;
+
+    @Autowired
+    public DownloadHealthDocumentFileUseCase(HealthDocumentGateway healthDocumentGateway,
+                                             @Qualifier("nextcloudStorageGateway") StorageGateway storageGateway) {
+        this.healthDocumentGateway = healthDocumentGateway;
+        this.storageGateway = storageGateway;
+    }
 
     @Transactional(readOnly = true)
     public HealthDocumentFile execute(UUID documentId) {
