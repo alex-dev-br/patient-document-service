@@ -81,4 +81,35 @@ public class LocalStorageGateway implements StorageGateway {
             throw new StorageException("Não foi possível ler o arquivo armazenado.", exception);
         }
     }
+
+    @Override
+    public void delete(String storagePath) {
+        if (storagePath == null || storagePath.isBlank()) {
+            throw new StorageException(
+                    "O caminho do arquivo armazenado não foi informado."
+            );
+        }
+
+        Path normalizedRootPath =
+                rootPath.toAbsolutePath().normalize();
+
+        Path normalizedFilePath =
+                Path.of(storagePath).toAbsolutePath().normalize();
+
+        if (!normalizedFilePath.startsWith(normalizedRootPath)) {
+            throw new StorageException(
+                    "Não é permitido excluir um arquivo fora "
+                            + "do diretório de armazenamento."
+            );
+        }
+
+        try {
+            Files.deleteIfExists(normalizedFilePath);
+        } catch (IOException exception) {
+            throw new StorageException(
+                    "Não foi possível excluir o arquivo armazenado localmente.",
+                    exception
+            );
+        }
+    }
 }

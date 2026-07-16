@@ -12,8 +12,10 @@ import br.com.fiap.techchallenge.patientdocument.application.storage.result.Stor
 import br.com.fiap.techchallenge.patientdocument.domain.document.HealthDocument;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
+import java.util.Objects;
 import java.util.UUID;
 
 @Service
@@ -23,22 +25,25 @@ public class UploadHealthDocumentUseCase {
     private final StorageGateway storageGateway;
     private final HealthDocumentGateway healthDocumentGateway;
     private final DocumentProcessingEventGateway documentProcessingEventGateway;
+    private final TransactionTemplate transactionTemplate;
 
     public UploadHealthDocumentUseCase(
             PatientGateway patientGateway,
             @Qualifier("nextcloudStorageGateway")
             StorageGateway storageGateway,
             HealthDocumentGateway healthDocumentGateway,
-            DocumentProcessingEventGateway documentProcessingEventGateway
+            DocumentProcessingEventGateway documentProcessingEventGateway,
+            PlatformTransactionManager transactionManager
     ) {
         this.patientGateway = patientGateway;
         this.storageGateway = storageGateway;
         this.healthDocumentGateway = healthDocumentGateway;
         this.documentProcessingEventGateway =
                 documentProcessingEventGateway;
+        this.transactionTemplate =
+                new TransactionTemplate(transactionManager);
     }
 
-    @Transactional
     public HealthDocument execute(
             UploadHealthDocumentCommand command
     ) {
@@ -62,8 +67,34 @@ public class UploadHealthDocumentUseCase {
                 )
         );
 
+        try {
+            return Objects.requireNonNull(
+                    transactionTemplate.execute(
+                            transactionStatus ->
+                                    persistDocumentAndEvent(
+                                            command.patientId(),
+                                            storedFile
+                                    )
+                    ),
+                    "A transação de upload não retornou "
+                            + "o documento salvo."
+            );
+        } catch (RuntimeException originalException) {
+            compensateStoredFile(
+                    storedFile,
+                    originalException
+            );
+
+            throw originalException;
+        }
+    }
+
+    private HealthDocument persistDocumentAndEvent(
+            UUID patientId,
+            StoredFile storedFile
+    ) {
         HealthDocument document = HealthDocument.createPending(
-                command.patientId(),
+                patientId,
                 storedFile.originalFileName(),
                 storedFile.storedFileName(),
                 storedFile.storagePath(),
@@ -83,5 +114,16 @@ public class UploadHealthDocumentUseCase {
         );
 
         return savedDocument;
+    }
+
+    private void compensateStoredFile(
+            StoredFile storedFile,
+            RuntimeException originalException
+    ) {
+        try {
+            storageGateway.delete(storedFile.storagePath());
+        } catch (RuntimeException cleanupException) {
+            originalException.addSuppressed(cleanupException);
+        }
     }
 }
