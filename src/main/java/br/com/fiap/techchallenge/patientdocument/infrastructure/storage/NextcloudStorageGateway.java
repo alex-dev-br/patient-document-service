@@ -98,4 +98,28 @@ public class NextcloudStorageGateway implements StorageGateway {
             throw new StorageException("Não foi possível ler o arquivo armazenado.", exception);
         }
     }
+
+    @Override
+    public void delete(String storagePath) {
+        if (storagePath == null || storagePath.isBlank()) {
+            throw new StorageException(
+                    "O caminho do arquivo armazenado não foi informado."
+            );
+        }
+
+        try {
+            Sardine sardine =
+                    SardineFactory.begin(username, appPassword);
+
+            if (sardine.exists(storagePath)) {
+                sardine.delete(storagePath);
+            }
+        } catch (IOException exception) {
+            throw new StorageException(
+                    "Não foi possível excluir o arquivo armazenado "
+                            + "no Nextcloud.",
+                    exception
+            );
+        }
+    }
 }

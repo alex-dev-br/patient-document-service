@@ -9,4 +9,6 @@ public interface StorageGateway {
     StoredFile store(StoreFileCommand command);
 
     StoredFileContent load(String storagePath);
+
+    void delete(String storagePath);
 }

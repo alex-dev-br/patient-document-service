@@ -5,6 +5,7 @@ import br.com.fiap.techchallenge.patientdocument.application.document.command.Up
 import br.com.fiap.techchallenge.patientdocument.application.document.event.DocumentProcessingRequestedEvent;
 import br.com.fiap.techchallenge.patientdocument.application.document.gateway.DocumentProcessingEventGateway;
 import br.com.fiap.techchallenge.patientdocument.application.exception.ResourceNotFoundException;
+import br.com.fiap.techchallenge.patientdocument.application.exception.StorageException;
 import br.com.fiap.techchallenge.patientdocument.application.storage.command.StoreFileCommand;
 import br.com.fiap.techchallenge.patientdocument.application.storage.gateway.StorageGateway;
 import br.com.fiap.techchallenge.patientdocument.application.storage.result.StoredFile;
@@ -33,13 +34,9 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.doThrow;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 
 @SpringBootTest(
         properties = {
@@ -192,6 +189,9 @@ class UploadHealthDocumentIntegrationTest {
 
         assertThat(capturedEvent.patientId())
                 .isEqualTo(patientId);
+
+        verify(storageGateway, never())
+                .delete(any(String.class));
     }
 
     @Test
@@ -227,6 +227,9 @@ class UploadHealthDocumentIntegrationTest {
 
         verify(documentProcessingEventGateway)
                 .enqueue(any(DocumentProcessingRequestedEvent.class));
+
+        verify(storageGateway)
+                .delete(STORAGE_PATH);
     }
 
     @Test
@@ -252,6 +255,9 @@ class UploadHealthDocumentIntegrationTest {
 
         verify(documentProcessingEventGateway, never())
                 .enqueue(any(DocumentProcessingRequestedEvent.class));
+
+        verify(storageGateway, never())
+                .delete(any(String.class));
     }
 
     @Test
@@ -288,6 +294,9 @@ class UploadHealthDocumentIntegrationTest {
 
         verify(documentProcessingEventGateway, never())
                 .enqueue(any(DocumentProcessingRequestedEvent.class));
+
+        verify(storageGateway, never())
+                .delete(any(String.class));
     }
 
     private void configureSuccessfulStorage() {
@@ -359,5 +368,53 @@ class UploadHealthDocumentIntegrationTest {
         jdbcTemplate.update(
                 "DELETE FROM patients"
         );
+    }
+
+    @Test
+    void shouldPreserveOriginalExceptionWhenStorageCleanupFails() {
+        insertPatient();
+        configureSuccessfulStorage();
+
+        IllegalStateException originalException =
+                new IllegalStateException(
+                        "Falha original ao gravar a Outbox."
+                );
+
+        StorageException cleanupException =
+                new StorageException(
+                        "Falha ao excluir o arquivo do Nextcloud."
+                );
+
+        doThrow(originalException)
+                .when(documentProcessingEventGateway)
+                .enqueue(any(DocumentProcessingRequestedEvent.class));
+
+        doThrow(cleanupException)
+                .when(storageGateway)
+                .delete(STORAGE_PATH);
+
+        Throwable thrownException = catchThrowable(
+                () -> uploadHealthDocumentUseCase.execute(
+                        validUploadCommand()
+                )
+        );
+
+        assertThat(thrownException)
+                .isSameAs(originalException);
+
+        assertThat(thrownException.getSuppressed())
+                .containsExactly(cleanupException);
+
+        assertThat(healthDocumentRepository.count())
+                .isZero();
+
+        assertThat(outboxRepository.count())
+                .isZero();
+
+        verify(storageGateway)
+                .store(any(StoreFileCommand.class));
+
+        verify(storageGateway)
+                .delete(STORAGE_PATH);
     }
 }
