@@ -11,6 +11,10 @@ import br.com.fiap.techchallenge.patientdocument.domain.document.HealthDocument;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import br.com.fiap.techchallenge.patientdocument.application.document.event.DocumentProcessingRequestedEvent;
+import br.com.fiap.techchallenge.patientdocument.application.document.gateway.DocumentProcessingEventGateway;
+
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -19,6 +23,7 @@ public class UploadHealthDocumentUseCase {
     private final PatientGateway patientGateway;
     private final StorageGateway storageGateway;
     private final HealthDocumentGateway healthDocumentGateway;
+    private final DocumentProcessingEventGateway documentProcessingEventGateway;
 
     @Transactional
     public HealthDocument execute(UploadHealthDocumentCommand command) {
@@ -45,6 +50,16 @@ public class UploadHealthDocumentUseCase {
                 storedFile.fileSize()
         );
 
-        return healthDocumentGateway.save(document);
+        HealthDocument savedDocument = healthDocumentGateway.save(document);
+
+        documentProcessingEventGateway.enqueue(
+                new DocumentProcessingRequestedEvent(
+                        UUID.randomUUID(),
+                        savedDocument.getId(),
+                        savedDocument.getPatientId()
+                )
+        );
+
+        return savedDocument;
     }
 }
