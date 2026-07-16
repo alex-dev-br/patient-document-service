@@ -1,6 +1,8 @@
 package br.com.fiap.techchallenge.patientdocument.application.document.usecase;
 
 import br.com.fiap.techchallenge.patientdocument.application.document.command.UploadHealthDocumentCommand;
+import br.com.fiap.techchallenge.patientdocument.application.document.event.DocumentProcessingRequestedEvent;
+import br.com.fiap.techchallenge.patientdocument.application.document.gateway.DocumentProcessingEventGateway;
 import br.com.fiap.techchallenge.patientdocument.application.document.gateway.HealthDocumentGateway;
 import br.com.fiap.techchallenge.patientdocument.application.exception.ResourceNotFoundException;
 import br.com.fiap.techchallenge.patientdocument.application.patient.gateway.PatientGateway;
@@ -8,16 +10,13 @@ import br.com.fiap.techchallenge.patientdocument.application.storage.command.Sto
 import br.com.fiap.techchallenge.patientdocument.application.storage.gateway.StorageGateway;
 import br.com.fiap.techchallenge.patientdocument.application.storage.result.StoredFile;
 import br.com.fiap.techchallenge.patientdocument.domain.document.HealthDocument;
-import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import br.com.fiap.techchallenge.patientdocument.application.document.event.DocumentProcessingRequestedEvent;
-import br.com.fiap.techchallenge.patientdocument.application.document.gateway.DocumentProcessingEventGateway;
 
 import java.util.UUID;
 
 @Service
-@RequiredArgsConstructor
 public class UploadHealthDocumentUseCase {
 
     private final PatientGateway patientGateway;
@@ -25,21 +24,43 @@ public class UploadHealthDocumentUseCase {
     private final HealthDocumentGateway healthDocumentGateway;
     private final DocumentProcessingEventGateway documentProcessingEventGateway;
 
+    public UploadHealthDocumentUseCase(
+            PatientGateway patientGateway,
+            @Qualifier("nextcloudStorageGateway")
+            StorageGateway storageGateway,
+            HealthDocumentGateway healthDocumentGateway,
+            DocumentProcessingEventGateway documentProcessingEventGateway
+    ) {
+        this.patientGateway = patientGateway;
+        this.storageGateway = storageGateway;
+        this.healthDocumentGateway = healthDocumentGateway;
+        this.documentProcessingEventGateway =
+                documentProcessingEventGateway;
+    }
+
     @Transactional
-    public HealthDocument execute(UploadHealthDocumentCommand command) {
+    public HealthDocument execute(
+            UploadHealthDocumentCommand command
+    ) {
         patientGateway.findById(command.patientId())
-                .orElseThrow(() -> new ResourceNotFoundException("Paciente não encontrado: " + command.patientId()));
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Paciente não encontrado: " + command.patientId()
+                ));
 
         if (command.fileSize() == null || command.fileSize() <= 0) {
-            throw new IllegalArgumentException("O arquivo enviado está vazio.");
+            throw new IllegalArgumentException(
+                    "O arquivo enviado está vazio."
+            );
         }
 
-        StoredFile storedFile = storageGateway.store(new StoreFileCommand(
-                command.originalFileName(),
-                command.contentType(),
-                command.fileSize(),
-                command.inputStream()
-        ));
+        StoredFile storedFile = storageGateway.store(
+                new StoreFileCommand(
+                        command.originalFileName(),
+                        command.contentType(),
+                        command.fileSize(),
+                        command.inputStream()
+                )
+        );
 
         HealthDocument document = HealthDocument.createPending(
                 command.patientId(),
@@ -50,7 +71,8 @@ public class UploadHealthDocumentUseCase {
                 storedFile.fileSize()
         );
 
-        HealthDocument savedDocument = healthDocumentGateway.save(document);
+        HealthDocument savedDocument =
+                healthDocumentGateway.save(document);
 
         documentProcessingEventGateway.enqueue(
                 new DocumentProcessingRequestedEvent(

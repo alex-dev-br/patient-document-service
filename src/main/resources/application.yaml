@@ -69,9 +69,14 @@ app:
       max-attempts: ${KAFKA_OUTBOX_MAX_ATTEMPTS:5}
       outbox-fixed-delay: ${KAFKA_OUTBOX_FIXED_DELAY:5000}
       send-timeout-seconds: ${KAFKA_SEND_TIMEOUT_SECONDS:10}
-
       listener-retry-interval: ${KAFKA_LISTENER_RETRY_INTERVAL:1000}
       listener-max-retries: ${KAFKA_LISTENER_MAX_RETRIES:2}
+
+nextcloud:
+  webdav:
+    url: http://${NEXTCLOUD_HOST:localhost}/remote.php/dav/files/${NEXTCLOUD_USER:nextcloud}/
+  username: ${NEXTCLOUD_USER:nextcloud}
+  app-password: ${NEXTCLOUD_PASSWORD:nextcloud}
 
 springdoc:
   packages-to-scan: br.com.fiap.techchallenge.patientdocument.infrastructure.web
