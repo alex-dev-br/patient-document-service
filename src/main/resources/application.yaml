@@ -24,6 +24,31 @@ spring:
       max-file-size: 10MB
       max-request-size: 10MB
 
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JacksonJsonSerializer
+      acks: all
+
+      properties:
+        "[spring.json.add.type.headers]": false
+
+    consumer:
+      group-id: ${KAFKA_CONSUMER_GROUP:patient-document-service}
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JacksonJsonDeserializer
+
+      properties:
+        "[spring.json.use.type.headers]": false
+        "[spring.json.value.default.type]": br.com.fiap.techchallenge.patientdocument.infrastructure.messaging.kafka.DocumentProcessedResponseMessage
+        "[spring.json.trusted.packages]": br.com.fiap.techchallenge.patientdocument.infrastructure.messaging.kafka
+
+    listener:
+      ack-mode: record
+
 server:
   port: 8080
 
@@ -31,11 +56,28 @@ app:
   storage:
     local-path: ${APP_STORAGE_LOCAL_PATH:./storage/documents}
 
+  messaging:
+    kafka:
+      enabled: ${KAFKA_ENABLED:false}
+
+      topics:
+        processing-requested: ${KAFKA_TOPIC_PROCESSING_REQUESTED:document-processing-requested}
+        processed-response: ${KAFKA_TOPIC_PROCESSED_RESPONSE:document-processed-response}
+        processed-response-dlt: ${KAFKA_TOPIC_PROCESSED_RESPONSE_DLT:document-processed-response-dlt}
+
+      document-file-base-url: ${DOCUMENT_FILE_BASE_URL:http://localhost:8080}
+      max-attempts: ${KAFKA_OUTBOX_MAX_ATTEMPTS:5}
+      outbox-fixed-delay: ${KAFKA_OUTBOX_FIXED_DELAY:5000}
+      send-timeout-seconds: ${KAFKA_SEND_TIMEOUT_SECONDS:10}
+      listener-retry-interval: ${KAFKA_LISTENER_RETRY_INTERVAL:1000}
+      listener-max-retries: ${KAFKA_LISTENER_MAX_RETRIES:2}
+
 nextcloud:
   webdav:
     url: http://${NEXTCLOUD_HOST:localhost}/remote.php/dav/files/${NEXTCLOUD_USER:nextcloud}/
   username: ${NEXTCLOUD_USER:nextcloud}
   app-password: ${NEXTCLOUD_PASSWORD:nextcloud}
+
 springdoc:
   packages-to-scan: br.com.fiap.techchallenge.patientdocument.infrastructure.web
 

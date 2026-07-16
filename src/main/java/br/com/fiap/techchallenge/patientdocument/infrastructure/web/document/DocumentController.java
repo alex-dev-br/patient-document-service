@@ -3,6 +3,7 @@ package br.com.fiap.techchallenge.patientdocument.infrastructure.web.document;
 import br.com.fiap.techchallenge.patientdocument.application.document.result.HealthDocumentFile;
 import br.com.fiap.techchallenge.patientdocument.application.document.usecase.DownloadHealthDocumentFileUseCase;
 import br.com.fiap.techchallenge.patientdocument.application.document.usecase.FindHealthDocumentByIdUseCase;
+import br.com.fiap.techchallenge.patientdocument.application.document.usecase.ListProcessedDocumentResultsUseCase;
 import br.com.fiap.techchallenge.patientdocument.application.document.usecase.UpdateDocumentAiResultUseCase;
 import br.com.fiap.techchallenge.patientdocument.domain.document.HealthDocument;
 import io.swagger.v3.oas.annotations.Operation;
@@ -18,6 +19,7 @@ import org.springframework.http.*;
 import org.springframework.web.bind.annotation.*;
 
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -32,6 +34,8 @@ public class DocumentController {
     private final UpdateDocumentAiResultUseCase updateDocumentAiResultUseCase;
     private final DownloadHealthDocumentFileUseCase downloadHealthDocumentFileUseCase;
     private final HealthDocumentWebMapper healthDocumentWebMapper;
+    private final ListProcessedDocumentResultsUseCase listProcessedDocumentResultsUseCase;
+    private final ProcessedDocumentResultWebMapper processedDocumentResultWebMapper;
 
     @GetMapping(
             value = "/documents/{documentId}",
@@ -113,6 +117,46 @@ public class DocumentController {
                                 .toString()
                 )
                 .body(resource);
+    }
+
+    @GetMapping(
+            value = "/documents/{documentId}/processed-results",
+            produces = MediaType.APPLICATION_JSON_VALUE
+    )
+    @Operation(
+            operationId = "listDocumentProcessedResults",
+            summary = "Listar resultados processados pela IA",
+            description = """
+                Retorna todos os resultados extraídos pela inteligência artificial
+                para o documento original. Um mesmo arquivo pode gerar mais de um
+                resultado clínico.
+                """
+    )
+    @ApiResponses({
+            @ApiResponse(
+                    responseCode = "200",
+                    description = "Resultados retornados com sucesso"
+            ),
+            @ApiResponse(
+                    responseCode = "404",
+                    description = "Documento não encontrado",
+                    content = @Content(
+                            mediaType = MediaType.APPLICATION_PROBLEM_JSON_VALUE,
+                            schema = @Schema(implementation = ProblemDetail.class)
+                    )
+            )
+    })
+    public ResponseEntity<List<ProcessedDocumentResultResponse>>
+    listProcessedResults(@PathVariable UUID documentId) {
+
+        List<ProcessedDocumentResultResponse> response =
+                listProcessedDocumentResultsUseCase
+                        .execute(documentId)
+                        .stream()
+                        .map(processedDocumentResultWebMapper::toResponse)
+                        .toList();
+
+        return ResponseEntity.ok(response);
     }
 
     @PatchMapping(
