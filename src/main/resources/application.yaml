@@ -63,11 +63,15 @@ app:
       topics:
         processing-requested: ${KAFKA_TOPIC_PROCESSING_REQUESTED:document-processing-requested}
         processed-response: ${KAFKA_TOPIC_PROCESSED_RESPONSE:document-processed-response}
+        processed-response-dlt: ${KAFKA_TOPIC_PROCESSED_RESPONSE_DLT:document-processed-response-dlt}
 
       document-file-base-url: ${DOCUMENT_FILE_BASE_URL:http://localhost:8080}
       max-attempts: ${KAFKA_OUTBOX_MAX_ATTEMPTS:5}
       outbox-fixed-delay: ${KAFKA_OUTBOX_FIXED_DELAY:5000}
       send-timeout-seconds: ${KAFKA_SEND_TIMEOUT_SECONDS:10}
+
+      listener-retry-interval: ${KAFKA_LISTENER_RETRY_INTERVAL:1000}
+      listener-max-retries: ${KAFKA_LISTENER_MAX_RETRIES:2}
 
 springdoc:
   packages-to-scan: br.com.fiap.techchallenge.patientdocument.infrastructure.web

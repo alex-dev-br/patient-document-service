@@ -37,4 +37,16 @@ public class KafkaTopicConfig {
                 .replicas(1)
                 .build();
     }
+
+    @Bean
+    public NewTopic documentProcessedResponseDltTopic(
+            @Value("${app.messaging.kafka.topics.processed-response-dlt}")
+            String topic
+    ) {
+        return TopicBuilder
+                .name(topic)
+                .partitions(1)
+                .replicas(1)
+                .build();
+    }
 }
