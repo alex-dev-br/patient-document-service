@@ -140,6 +140,8 @@ services:
             NEXTCLOUD_ENABLE_ENCRYPTION: "1"
             NEXTCLOUD_ENCRYPTION_MODE: master
 
+            NEXTCLOUD_TRUSTED_DOMAINS: "nextcloud"
+
         ports:
             - "80:80"
 
