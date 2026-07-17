@@ -7,18 +7,19 @@ import br.com.fiap.techchallenge.patientdocument.application.storage.result.Stor
 import br.com.fiap.techchallenge.patientdocument.application.storage.result.StoredFileContent;
 import com.github.sardine.Sardine;
 import com.github.sardine.SardineFactory;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
 import java.net.URI;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.UUID;
 
+@Slf4j
 @Component("nextcloudStorageGateway")
 public class NextcloudStorageGateway implements StorageGateway {
 
@@ -46,7 +47,9 @@ public class NextcloudStorageGateway implements StorageGateway {
 
             Sardine sardine = SardineFactory.begin(username, appPassword);
             var folder = baseUrl + datePath;
+
             if (!sardine.exists(folder)) {
+                log.info("Tentando criar diretório WebDAV: {}", folder);
                 sardine.createDirectory(folder);
             }
             var urlFinal = URI.create(folder + "/" + storedFileName).normalize();
@@ -61,6 +64,7 @@ public class NextcloudStorageGateway implements StorageGateway {
                     command.fileSize()
             );
         } catch (Exception exception) {
+            log.error("Erro ao salvar o arquivo.", exception);
             throw new StorageException("Erro ao salvar o arquivo.", exception);
         }
     }
@@ -94,8 +98,9 @@ public class NextcloudStorageGateway implements StorageGateway {
                 byte[] content = is.readAllBytes();
                 return new StoredFileContent(content, content.length);
             }
-        } catch (Exception exception) {
-            throw new StorageException("Não foi possível ler o arquivo armazenado.", exception);
+        } catch (Exception e) {
+            log.error("Não foi possível ler o arquivo armazenado.", e);
+            throw new StorageException("Não foi possível ler o arquivo armazenado.", e);
         }
     }
 
@@ -115,6 +120,7 @@ public class NextcloudStorageGateway implements StorageGateway {
                 sardine.delete(storagePath);
             }
         } catch (IOException exception) {
+            log.error("Não foi possível excluir o arquivo armazenado", exception);
             throw new StorageException(
                     "Não foi possível excluir o arquivo armazenado "
                             + "no Nextcloud.",
