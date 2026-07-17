@@ -2,6 +2,14 @@ spring:
   application:
     name: patient-document-service
 
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${IAM_ISSUER_URI:http://localhost:8081/realms/meu-historico-saude}
+          audiences:
+            - ${IAM_AUDIENCE:patient-document-api}
+
   datasource:
     url: jdbc:postgresql://${POSTGRES_HOST:localhost}:${POSTGRES_PORT:5432}/${POSTGRES_DB:meu_historico_saude}
     username: ${POSTGRES_USER:postgres}
