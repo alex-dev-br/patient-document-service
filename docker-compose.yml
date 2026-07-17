@@ -14,6 +14,14 @@ services:
         volumes:
             - postgres_data:/var/lib/postgresql
 
+        healthcheck:
+            test:
+                - CMD-SHELL
+                - pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}
+            interval: 5s
+            timeout: 5s
+            retries: 10
+
         deploy:
             resources:
                 limits:
@@ -145,6 +153,58 @@ services:
             resources:
                 limits:
                     memory: 256M
+
+        networks:
+            - app_network
+
+    patient-document-service:
+        build:
+            context: .
+            dockerfile: Dockerfile
+
+        image: patient-document-service:local
+        container_name: meu-historico-saude-api
+        restart: unless-stopped
+
+        environment:
+            POSTGRES_HOST: postgres
+            POSTGRES_PORT: 5432
+            POSTGRES_DB: ${POSTGRES_DB}
+            POSTGRES_USER: ${POSTGRES_USER}
+            POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+
+            KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+            KAFKA_ENABLED: "true"
+            DOCUMENT_FILE_BASE_URL: http://patient-document-service:8080
+
+            NEXTCLOUD_HOST: http://nextcloud
+            NEXTCLOUD_USER: ${NEXTCLOUD_USER}
+            NEXTCLOUD_PASSWORD: ${NEXTCLOUD_PASSWORD}
+
+            IAM_ISSUER_URI: http://localhost:8081/realms/meu-historico-saude
+            IAM_JWK_SET_URI: http://keycloak:8080/realms/meu-historico-saude/protocol/openid-connect/certs
+            IAM_AUDIENCE: patient-document-api
+
+        ports:
+            - "8080:8080"
+
+        depends_on:
+            postgres:
+                condition: service_healthy
+
+            kafka:
+                condition: service_started
+
+            nextcloud:
+                condition: service_started
+
+            keycloak:
+                condition: service_started
+
+        deploy:
+            resources:
+                limits:
+                    memory: 512M
 
         networks:
             - app_network
