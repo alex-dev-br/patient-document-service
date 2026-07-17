@@ -7,6 +7,7 @@ spring:
       resourceserver:
         jwt:
           issuer-uri: ${IAM_ISSUER_URI:http://localhost:8081/realms/meu-historico-saude}
+          jwk-set-uri: ${IAM_JWK_SET_URI:http://localhost:8081/realms/meu-historico-saude/protocol/openid-connect/certs}
           audiences:
             - ${IAM_AUDIENCE:patient-document-api}
 
