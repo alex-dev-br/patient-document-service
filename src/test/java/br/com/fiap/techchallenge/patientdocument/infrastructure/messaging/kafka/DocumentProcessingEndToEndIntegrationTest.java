@@ -40,19 +40,13 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Properties;
-import java.util.UUID;
+import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BooleanSupplier;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 
 @SpringBootTest(
         properties = {
@@ -658,9 +652,7 @@ class DocumentProcessingEndToEndIntegrationTest {
     }
 
     private String expectedFileUrl() {
-        return "http://localhost:8080/documents/"
-                + documentId
-                + "/file";
+        return STORAGE_PATH;
     }
 
     private void insertPatient() {

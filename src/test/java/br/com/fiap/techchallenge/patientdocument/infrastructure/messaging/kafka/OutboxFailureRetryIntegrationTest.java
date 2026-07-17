@@ -3,6 +3,7 @@ package br.com.fiap.techchallenge.patientdocument.infrastructure.messaging.kafka
 import br.com.fiap.techchallenge.patientdocument.KafkaTestcontainersConfiguration;
 import br.com.fiap.techchallenge.patientdocument.TestcontainersConfiguration;
 import br.com.fiap.techchallenge.patientdocument.domain.document.DocumentProcessingStatus;
+import br.com.fiap.techchallenge.patientdocument.infrastructure.persistence.document.HealthDocumentJpaRepository;
 import br.com.fiap.techchallenge.patientdocument.infrastructure.persistence.outbox.DocumentProcessingOutboxJpaEntity;
 import br.com.fiap.techchallenge.patientdocument.infrastructure.persistence.outbox.DocumentProcessingOutboxJpaRepository;
 import br.com.fiap.techchallenge.patientdocument.infrastructure.persistence.outbox.DocumentProcessingOutboxStatus;
@@ -37,9 +38,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.doThrow;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.*;
 
 @SpringBootTest(
         properties = {
@@ -82,6 +81,9 @@ class OutboxFailureRetryIntegrationTest {
 
     @Autowired
     private DocumentProcessingOutboxJpaRepository outboxRepository;
+
+    @Autowired
+    private HealthDocumentJpaRepository healthDocumentJpaRepository;
 
     @Autowired
     private KafkaContainer kafkaContainer;
@@ -250,6 +252,7 @@ class OutboxFailureRetryIntegrationTest {
         DocumentProcessingOutboxProcessor failingProcessor =
                 new DocumentProcessingOutboxProcessor(
                         outboxRepository,
+                        healthDocumentJpaRepository,
                         failingKafkaTemplate,
                         processingRequestedTopic,
                         DOCUMENT_FILE_BASE_URL,
@@ -396,9 +399,7 @@ class OutboxFailureRetryIntegrationTest {
     }
 
     private String expectedFileUrl() {
-        return "http://localhost:8080/documents/"
-                + documentId
-                + "/file";
+        return "/documentos/arquivo-outbox-retry.pdf";
     }
 
     private void insertPatient() {

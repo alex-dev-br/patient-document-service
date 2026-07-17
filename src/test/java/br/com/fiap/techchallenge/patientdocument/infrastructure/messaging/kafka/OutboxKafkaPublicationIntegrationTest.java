@@ -336,9 +336,7 @@ class OutboxKafkaPublicationIntegrationTest {
     }
 
     private String expectedFileUrl() {
-        return "http://localhost:8080/documents/"
-                + documentId
-                + "/file";
+        return "/documentos/arquivo-outbox.pdf";
     }
 
     private void insertPatient() {

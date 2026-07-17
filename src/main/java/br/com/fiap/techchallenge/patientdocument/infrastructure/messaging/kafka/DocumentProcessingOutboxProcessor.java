@@ -1,5 +1,6 @@
 package br.com.fiap.techchallenge.patientdocument.infrastructure.messaging.kafka;
 
+import br.com.fiap.techchallenge.patientdocument.infrastructure.persistence.document.HealthDocumentJpaRepository;
 import br.com.fiap.techchallenge.patientdocument.infrastructure.persistence.outbox.DocumentProcessingOutboxJpaRepository;
 import br.com.fiap.techchallenge.patientdocument.infrastructure.persistence.outbox.DocumentProcessingOutboxStatus;
 import org.springframework.beans.factory.annotation.Value;
@@ -22,6 +23,7 @@ import java.util.concurrent.TimeoutException;
 public class DocumentProcessingOutboxProcessor {
 
     private final DocumentProcessingOutboxJpaRepository repository;
+    private final HealthDocumentJpaRepository healthDocumentJpaRepository;
     private final KafkaTemplate<Object, Object> kafkaTemplate;
     private final String topic;
     private final String documentFileBaseUrl;
@@ -29,6 +31,7 @@ public class DocumentProcessingOutboxProcessor {
 
     public DocumentProcessingOutboxProcessor(
             DocumentProcessingOutboxJpaRepository repository,
+            HealthDocumentJpaRepository healthDocumentJpaRepository,
             KafkaTemplate<Object, Object> kafkaTemplate,
             @Value("${app.messaging.kafka.topics.processing-requested}")
             String topic,
@@ -38,6 +41,7 @@ public class DocumentProcessingOutboxProcessor {
             int sendTimeoutSeconds
     ) {
         this.repository = repository;
+        this.healthDocumentJpaRepository = healthDocumentJpaRepository;
         this.kafkaTemplate = kafkaTemplate;
         this.topic = topic;
         this.documentFileBaseUrl = documentFileBaseUrl;
@@ -84,17 +88,10 @@ public class DocumentProcessingOutboxProcessor {
     }
 
     private String buildFileUrl(UUID documentId) {
-        String normalizedBaseUrl = documentFileBaseUrl.endsWith("/")
-                ? documentFileBaseUrl.substring(
-                0,
-                documentFileBaseUrl.length() - 1
-        )
-                : documentFileBaseUrl;
-
-        return normalizedBaseUrl
-                + "/documents/"
-                + documentId
-                + "/file";
+        return healthDocumentJpaRepository
+                .findById(documentId)
+                .orElseThrow(() -> new RuntimeException("Documento sem path"))
+                .getStoragePath();
     }
 
     private String resolveErrorMessage(Throwable throwable) {
