@@ -74,7 +74,7 @@ app:
 
 nextcloud:
   webdav:
-    url: http://${NEXTCLOUD_HOST:localhost}/remote.php/dav/files/${NEXTCLOUD_USER:nextcloud}/
+    url: ${NEXTCLOUD_HOST:http://localhost}/remote.php/dav/files/${NEXTCLOUD_USER:nextcloud}/
   username: ${NEXTCLOUD_USER:nextcloud}
   app-password: ${NEXTCLOUD_PASSWORD:nextcloud}
 
