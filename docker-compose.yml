@@ -42,6 +42,78 @@ services:
         networks:
             - app_network
 
+    postgres-keycloak:
+        image: postgres:18
+        container_name: meu-historico-saude-keycloak-postgres
+        restart: unless-stopped
+
+        environment:
+            POSTGRES_DB: ${KEYCLOAK_DB}
+            POSTGRES_USER: ${KEYCLOAK_DB_USER}
+            POSTGRES_PASSWORD: ${KEYCLOAK_DB_PASSWORD}
+
+        volumes:
+            - keycloak_postgres_data:/var/lib/postgresql
+
+        healthcheck:
+            test:
+                - CMD-SHELL
+                - pg_isready -U ${KEYCLOAK_DB_USER} -d ${KEYCLOAK_DB}
+            interval: 5s
+            timeout: 5s
+            retries: 10
+
+        deploy:
+            resources:
+                limits:
+                    memory: 256M
+
+        networks:
+            - app_network
+
+    keycloak:
+        image: quay.io/keycloak/keycloak:26.7.0
+        container_name: meu-historico-saude-keycloak
+        restart: unless-stopped
+
+        command:
+            - start-dev
+            - --import-realm
+
+        environment:
+            KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN}
+            KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD}
+
+            KC_DB: postgres
+            KC_DB_URL_HOST: postgres-keycloak
+            KC_DB_URL_DATABASE: ${KEYCLOAK_DB}
+            KC_DB_USERNAME: ${KEYCLOAK_DB_USER}
+            KC_DB_PASSWORD: ${KEYCLOAK_DB_PASSWORD}
+
+            KC_HOSTNAME: http://localhost:8081
+            KC_HEALTH_ENABLED: "true"
+
+            AI_PROCESSING_CLIENT_SECRET: ${AI_PROCESSING_CLIENT_SECRET}
+            PATIENT_DOCUMENT_DEV_CLIENT_SECRET: ${PATIENT_DOCUMENT_DEV_CLIENT_SECRET}
+
+        ports:
+            - "8081:8080"
+
+        volumes:
+            - ./docker/keycloak/meu-historico-saude-realm.json:/opt/keycloak/data/import/meu-historico-saude-realm.json:ro
+
+        depends_on:
+            postgres-keycloak:
+                condition: service_healthy
+
+        deploy:
+            resources:
+                limits:
+                    memory: 768M
+
+        networks:
+            - app_network
+
     nextcloud:
         image: nextcloud:apache
         container_name: seguro_nextcloud
@@ -124,3 +196,4 @@ volumes:
     postgres_data:
     postgres_nc_data:
     nc_dados:
+    keycloak_postgres_data:
