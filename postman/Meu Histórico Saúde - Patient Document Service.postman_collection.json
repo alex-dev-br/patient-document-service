@@ -1,0 +1,1543 @@
+{
+  "info": {
+    "_postman_id": "43c25e5c-238e-4dd4-94b0-786650661fb7",
+    "name": "Meu Histórico Saúde - Patient Document Service",
+    "description": "Collection para testes locais e via Kong do Patient Document Service.\n\nFluxo recomendado:\n1. Importe e selecione o environment fornecido.\n2. Preencha devClientSecret e, para os testes técnicos, aiClientSecret.\n3. Execute 'Obter token - cliente de desenvolvimento'.\n4. Execute 'Cadastrar paciente'; o patientId será salvo automaticamente na collection.\n5. Em 'Enviar documento', selecione manualmente o arquivo 'postman/files/exame-laboratorial-ficticio.png'; o documentId será salvo automaticamente.\n6. Execute 'Obter token - serviço de IA' antes dos testes que usam aiAccessToken.\n7. Para testar pelo Kong, altere somente a variável baseUrl para a URL/rota exposta pelo gateway.\n\nOs secrets, tokens, patientId e documentId não são incluídos com valores no arquivo exportado.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_exporter_id": "24615610"
+  },
+  "item": [
+    {
+      "name": "00 - Autenticação",
+      "item": [
+        {
+          "name": "Obter token - cliente de desenvolvimento",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "if (pm.response.code !== 200) {",
+                  "    pm.collectionVariables.set(\"accessToken\", \"\");",
+                  "} else {",
+                  "    const body = pm.response.json();",
+                  "",
+                  "    pm.test(\"Resposta contém access token\", function () {",
+                  "        pm.expect(body.access_token)",
+                  "            .to.be.a(\"string\")",
+                  "            .and.not.empty;",
+                  "    });",
+                  "",
+                  "    pm.test(\"Token retornado é Bearer\", function () {",
+                  "        pm.expect(body.token_type).to.eql(\"Bearer\");",
+                  "    });",
+                  "",
+                  "    pm.test(\"Token possui prazo de validade\", function () {",
+                  "        pm.expect(body.expires_in).to.be.a(\"number\");",
+                  "        pm.expect(body.expires_in).to.be.above(0);",
+                  "    });",
+                  "",
+                  "    const scopes = String(body.scope || \"\")",
+                  "        .split(/\\s+/)",
+                  "        .filter(Boolean);",
+                  "",
+                  "    const expectedScopes = [",
+                  "        \"patients:read\",",
+                  "        \"patients:write\",",
+                  "        \"documents:read\",",
+                  "        \"documents:write\",",
+                  "        \"documents:file:read\",",
+                  "        \"documents:ai-result:write\"",
+                  "    ];",
+                  "",
+                  "    const hasExpectedScopes = expectedScopes.every(function (scope) {",
+                  "        return scopes.includes(scope);",
+                  "    });",
+                  "",
+                  "    pm.test(\"Token contém os escopos de desenvolvimento\", function () {",
+                  "        expectedScopes.forEach(function (scope) {",
+                  "            pm.expect(scopes).to.include(scope);",
+                  "        });",
+                  "    });",
+                  "",
+                  "    if (",
+                  "        typeof body.access_token === \"string\" &&",
+                  "        body.access_token.length > 0 &&",
+                  "        hasExpectedScopes",
+                  "    ) {",
+                  "        pm.collectionVariables.set(",
+                  "            \"accessToken\",",
+                  "            body.access_token",
+                  "        );",
+                  "    } else {",
+                  "        pm.collectionVariables.set(\"accessToken\", \"\");",
+                  "    }",
+                  "}"
+                ],
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
+              }
+            },
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "const requiredVariables = [\r",
+                  "    \"keycloakBaseUrl\",\r",
+                  "    \"realm\",\r",
+                  "    \"devClientId\",\r",
+                  "    \"devClientSecret\"\r",
+                  "];\r",
+                  "\r",
+                  "const missingVariables = requiredVariables.filter(function (name) {\r",
+                  "    const value = pm.environment.get(name);\r",
+                  "\r",
+                  "    return (\r",
+                  "        value === undefined ||\r",
+                  "        value === null ||\r",
+                  "        String(value).trim() === \"\"\r",
+                  "    );\r",
+                  "});\r",
+                  "\r",
+                  "if (missingVariables.length > 0) {\r",
+                  "    throw new Error(\r",
+                  "        \"Variáveis obrigatórias não preenchidas no environment: \" +\r",
+                  "        missingVariables.join(\", \")\r",
+                  "    );\r",
+                  "}\r",
+                  "\r",
+                  "// Evita reutilizar um token antigo caso a nova autenticação falhe.\r",
+                  "pm.collectionVariables.set(\"accessToken\", \"\");"
+                ],
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/x-www-form-urlencoded"
+              }
+            ],
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                {
+                  "key": "grant_type",
+                  "value": "client_credentials",
+                  "type": "text"
+                },
+                {
+                  "key": "client_id",
+                  "value": "{{devClientId}}",
+                  "type": "text"
+                },
+                {
+                  "key": "client_secret",
+                  "value": "{{devClientSecret}}",
+                  "type": "text"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{keycloakBaseUrl}}/realms/{{realm}}/protocol/openid-connect/token",
+              "host": [
+                "{{keycloakBaseUrl}}"
+              ],
+              "path": [
+                "realms",
+                "{{realm}}",
+                "protocol",
+                "openid-connect",
+                "token"
+              ]
+            },
+            "description": "Obtém um token técnico com os escopos de desenvolvimento da API. O access_token é salvo automaticamente em accessToken."
+          },
+          "response": []
+        },
+        {
+          "name": "Obter token - serviço de IA",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "if (pm.response.code !== 200) {",
+                  "    pm.collectionVariables.set(\"aiAccessToken\", \"\");",
+                  "} else {",
+                  "    const body = pm.response.json();",
+                  "",
+                  "    pm.test(\"Resposta contém access token da IA\", function () {",
+                  "        pm.expect(body.access_token)",
+                  "            .to.be.a(\"string\")",
+                  "            .and.not.empty;",
+                  "    });",
+                  "",
+                  "    pm.test(\"Token da IA retornado é Bearer\", function () {",
+                  "        pm.expect(body.token_type).to.eql(\"Bearer\");",
+                  "    });",
+                  "",
+                  "    pm.test(\"Token da IA possui prazo de validade\", function () {",
+                  "        pm.expect(body.expires_in).to.be.a(\"number\");",
+                  "        pm.expect(body.expires_in).to.be.above(0);",
+                  "    });",
+                  "",
+                  "    const scopes = String(body.scope || \"\")",
+                  "        .split(/\\s+/)",
+                  "        .filter(Boolean);",
+                  "",
+                  "    const expectedScopes = [",
+                  "        \"documents:file:read\",",
+                  "        \"documents:ai-result:write\"",
+                  "    ];",
+                  "",
+                  "    const hasExpectedScopes = expectedScopes.every(function (scope) {",
+                  "        return scopes.includes(scope);",
+                  "    });",
+                  "",
+                  "    pm.test(\"Token da IA contém somente as permissões necessárias\", function () {",
+                  "        pm.expect(scopes.slice().sort()).to.eql(",
+                  "            expectedScopes.slice().sort()",
+                  "        );",
+                  "    });",
+                  "",
+                  "    if (",
+                  "        typeof body.access_token === \"string\" &&",
+                  "        body.access_token.length > 0 &&",
+                  "        hasExpectedScopes &&",
+                  "        scopes.length === expectedScopes.length",
+                  "    ) {",
+                  "        pm.collectionVariables.set(",
+                  "            \"aiAccessToken\",",
+                  "            body.access_token",
+                  "        );",
+                  "    } else {",
+                  "        pm.collectionVariables.set(\"aiAccessToken\", \"\");",
+                  "    }",
+                  "}"
+                ],
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
+              }
+            },
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "const requiredVariables = [\r",
+                  "    \"keycloakBaseUrl\",\r",
+                  "    \"realm\",\r",
+                  "    \"aiClientId\",\r",
+                  "    \"aiClientSecret\"\r",
+                  "];\r",
+                  "\r",
+                  "const missingVariables = requiredVariables.filter(function (name) {\r",
+                  "    const value = pm.environment.get(name);\r",
+                  "\r",
+                  "    return (\r",
+                  "        value === undefined ||\r",
+                  "        value === null ||\r",
+                  "        String(value).trim() === \"\"\r",
+                  "    );\r",
+                  "});\r",
+                  "\r",
+                  "if (missingVariables.length > 0) {\r",
+                  "    throw new Error(\r",
+                  "        \"Variáveis obrigatórias não preenchidas no environment: \" +\r",
+                  "        missingVariables.join(\", \")\r",
+                  "    );\r",
+                  "}\r",
+                  "\r",
+                  "// Evita que uma falha preserve um token antigo da IA.\r",
+                  "pm.collectionVariables.set(\"aiAccessToken\", \"\");"
+                ],
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/x-www-form-urlencoded"
+              }
+            ],
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                {
+                  "key": "grant_type",
+                  "value": "client_credentials",
+                  "type": "text"
+                },
+                {
+                  "key": "client_id",
+                  "value": "{{aiClientId}}",
+                  "type": "text"
+                },
+                {
+                  "key": "client_secret",
+                  "value": "{{aiClientSecret}}",
+                  "type": "text"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{keycloakBaseUrl}}/realms/{{realm}}/protocol/openid-connect/token",
+              "host": [
+                "{{keycloakBaseUrl}}"
+              ],
+              "path": [
+                "realms",
+                "{{realm}}",
+                "protocol",
+                "openid-connect",
+                "token"
+              ]
+            },
+            "description": "Obtém o token técnico do processador de IA. Esse cliente deve possuir somente documents:file:read e documents:ai-result:write. O token é salvo automaticamente em aiAccessToken."
+          },
+          "response": []
+        }
+      ],
+      "description": "Obtém tokens pelo fluxo OAuth 2.0 client_credentials do Keycloak."
+    },
+    {
+      "name": "01 - Documentação pública",
+      "item": [
+        {
+          "name": "OpenAPI JSON",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "if (pm.response.code === 200) {",
+                  "    const body = pm.response.json();",
+                  "",
+                  "    pm.test(\"Resposta contém a especificação OpenAPI\", function () {",
+                  "        pm.expect(body).to.have.property(\"openapi\");",
+                  "        pm.expect(body).to.have.property(\"info\");",
+                  "        pm.expect(body).to.have.property(\"paths\");",
+                  "    });",
+                  "",
+                  "    pm.test(\"OpenAPI possui endpoints documentados\", function () {",
+                  "        pm.expect(body.paths).to.be.an(\"object\");",
+                  "        pm.expect(Object.keys(body.paths).length).to.be.above(0);",
+                  "    });",
+                  "",
+                  "    pm.test(\"Endpoint de pacientes está documentado\", function () {",
+                  "        pm.expect(body.paths).to.have.property(\"/patients\");",
+                  "    });",
+                  "}",
+                  ""
+                ],
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/v3/api-docs",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v3",
+                "api-docs"
+              ]
+            },
+            "description": "A especificação OpenAPI deve permanecer pública, inclusive quando acessada pelo Kong."
+          },
+          "response": []
+        },
+        {
+          "name": "Swagger UI",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status 200\", function () {\r",
+                  "    pm.response.to.have.status(200);\r",
+                  "});\r",
+                  "\r",
+                  "if (pm.response.code === 200) {\r",
+                  "    const contentType =\r",
+                  "        pm.response.headers.get(\"Content-Type\") || \"\";\r",
+                  "\r",
+                  "    const body =\r",
+                  "        pm.response.text().toLowerCase();\r",
+                  "\r",
+                  "    pm.test(\"Resposta é HTML\", function () {\r",
+                  "        pm.expect(contentType.toLowerCase()).to.include(\"text/html\");\r",
+                  "    });\r",
+                  "\r",
+                  "    pm.test(\"Página contém o Swagger UI\", function () {\r",
+                  "        pm.expect(body).to.include(\"swagger\");\r",
+                  "    });\r",
+                  "}\r",
+                  ""
+                ],
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/swagger-ui/index.html",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "swagger-ui",
+                "index.html"
+              ]
+            },
+            "description": "Entrada pública do Swagger UI."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "02 - Pacientes",
+      "item": [
+        {
+          "name": "Cadastrar paciente",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status 201\", function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "if (pm.response.code === 201) {",
+                  "    const body = pm.response.json();",
+                  "",
+                  "    pm.test(\"Paciente possui ID\", function () {",
+                  "        pm.expect(body.id).to.be.a(\"string\").and.not.empty;",
+                  "    });",
+                  "",
+                  "    pm.collectionVariables.set(\"patientId\", body.id);",
+                  "}"
+                ],
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Paciente Postman {{$timestamp}}\",\n  \"birthDate\": \"1990-01-15\",\n  \"email\": \"postman.{{$timestamp}}@example.com\",\n  \"phone\": \"21999999999\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/patients",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "patients"
+              ]
+            },
+            "description": "Requer patients:write. O identificador retornado é salvo automaticamente em patientId."
+          },
+          "response": []
+        },
+        {
+          "name": "Listar pacientes",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "if (pm.response.code === 200) {",
+                  "    const body = pm.response.json();",
+                  "",
+                  "    pm.test(\"Resposta é uma lista\", function () {",
+                  "        pm.expect(body).to.be.an(\"array\");",
+                  "    });",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/patients",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "patients"
+              ]
+            },
+            "description": "Requer patients:read."
+          },
+          "response": []
+        },
+        {
+          "name": "Consultar paciente por ID",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "if (pm.response.code === 200) {",
+                  "    const body = pm.response.json();",
+                  "    const patientId =",
+                  "        pm.collectionVariables.get(\"patientId\");",
+                  "",
+                  "    pm.test(\"Paciente possui os campos esperados\", function () {",
+                  "        pm.expect(body).to.have.property(\"id\");",
+                  "        pm.expect(body).to.have.property(\"name\");",
+                  "        pm.expect(body).to.have.property(\"birthDate\");",
+                  "        pm.expect(body).to.have.property(\"email\");",
+                  "        pm.expect(body).to.have.property(\"phone\");",
+                  "    });",
+                  "",
+                  "    pm.test(\"ID corresponde à variável patientId\", function () {",
+                  "        pm.expect(body.id).to.eql(patientId);",
+                  "    });",
+                  "}",
+                  ""
+                ],
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
+              }
+            },
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "const patientId =\r",
+                  "    pm.collectionVariables.get(\"patientId\");\r",
+                  "\r",
+                  "if (\r",
+                  "    !patientId ||\r",
+                  "    patientId === \"null\" ||\r",
+                  "    patientId === \"undefined\"\r",
+                  ") {\r",
+                  "    throw new Error(\r",
+                  "        \"patientId não está definido. Execute primeiro a requisição 'Cadastrar paciente'.\"\r",
+                  "    );\r",
+                  "}\r",
+                  ""
+                ],
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/patients/{{patientId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "patients",
+                "{{patientId}}"
+              ]
+            },
+            "description": "Requer patients:read."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "03 - Documentos do paciente",
+      "item": [
+        {
+          "name": "Enviar documento",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status 201\", function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "if (pm.response.code === 201) {",
+                  "    const body = pm.response.json();",
+                  "",
+                  "    pm.test(\"Documento possui ID\", function () {",
+                  "        pm.expect(body.id).to.be.a(\"string\").and.not.empty;",
+                  "    });",
+                  "",
+                  "    pm.collectionVariables.set(\"documentId\", body.id);",
+                  "",
+                  "    console.log(",
+                  "        \"documentId atualizado na collection:\",",
+                  "        body.id",
+                  "    );",
+                  "}"
+                ],
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
+              }
+            },
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "const patientId =",
+                  "    pm.collectionVariables.get(\"patientId\");",
+                  "",
+                  "if (",
+                  "    !patientId ||",
+                  "    patientId === \"null\" ||",
+                  "    patientId === \"undefined\"",
+                  ") {",
+                  "    throw new Error(",
+                  "        \"patientId não está definido. Execute primeiro a requisição 'Cadastrar paciente'.\"",
+                  "    );",
+                  "}"
+                ],
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "description": "Selecione manualmente o arquivo postman/files/exame-laboratorial-ficticio.png após importar a collection.",
+                  "src": ""
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/patients/{{patientId}}/documents",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "patients",
+                "{{patientId}}",
+                "documents"
+              ]
+            },
+            "description": "Requer documents:write. Selecione um arquivo antes de enviar. O ID retornado é salvo automaticamente em documentId."
+          },
+          "response": []
+        },
+        {
+          "name": "Listar documentos paginados",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "if (pm.response.code === 200) {",
+                  "    const body = pm.response.json();",
+                  "",
+                  "    pm.test(\"Resposta possui a estrutura paginada\", function () {",
+                  "        pm.expect(body).to.have.keys(",
+                  "            \"content\",",
+                  "            \"page\",",
+                  "            \"size\",",
+                  "            \"totalElements\",",
+                  "            \"totalPages\",",
+                  "            \"first\",",
+                  "            \"last\"",
+                  "        );",
+                  "    });",
+                  "",
+                  "    pm.test(\"Content é uma lista\", function () {",
+                  "        pm.expect(body.content).to.be.an(\"array\");",
+                  "    });",
+                  "",
+                  "    pm.test(\"Paginação solicitada foi aplicada\", function () {",
+                  "        pm.expect(body.page).to.eql(0);",
+                  "        pm.expect(body.size).to.eql(10);",
+                  "        pm.expect(body.totalElements).to.be.a(\"number\");",
+                  "        pm.expect(body.totalPages).to.be.a(\"number\");",
+                  "        pm.expect(body.first).to.be.a(\"boolean\");",
+                  "        pm.expect(body.last).to.be.a(\"boolean\");",
+                  "    });",
+                  "}"
+                ],
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
+              }
+            },
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "const patientId =",
+                  "    pm.collectionVariables.get(\"patientId\");",
+                  "",
+                  "if (",
+                  "    !patientId ||",
+                  "    patientId === \"null\" ||",
+                  "    patientId === \"undefined\"",
+                  ") {",
+                  "    throw new Error(",
+                  "        \"patientId não está definido. Execute primeiro a requisição 'Cadastrar paciente'.\"",
+                  "    );",
+                  "}"
+                ],
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/patients/{{patientId}}/documents?page=0&size=10",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "patients",
+                "{{patientId}}",
+                "documents"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "0"
+                },
+                {
+                  "key": "size",
+                  "value": "10"
+                },
+                {
+                  "key": "documentType",
+                  "value": "EXAME_LABORATORIAL",
+                  "disabled": true
+                },
+                {
+                  "key": "specialty",
+                  "value": "ENDOCRINOLOGIA",
+                  "disabled": true
+                },
+                {
+                  "key": "status",
+                  "value": "PROCESSED",
+                  "disabled": true
+                },
+                {
+                  "key": "keyword",
+                  "value": "glicemia",
+                  "disabled": true
+                },
+                {
+                  "key": "startDate",
+                  "value": "2026-01-01",
+                  "disabled": true
+                },
+                {
+                  "key": "endDate",
+                  "value": "2026-12-31",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Requer documents:read. page e size estão habilitados; os demais filtros opcionais estão cadastrados e desabilitados."
+          },
+          "response": []
+        },
+        {
+          "name": "Consultar timeline",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "if (pm.response.code === 200) {",
+                  "    const body = pm.response.json();",
+                  "",
+                  "    pm.test(\"Resposta é uma lista\", function () {",
+                  "        pm.expect(body).to.be.an(\"array\");",
+                  "    });",
+                  "",
+                  "    pm.test(\"Itens possuem os campos esperados\", function () {",
+                  "        body.forEach(function (item) {",
+                  "            pm.expect(item).to.have.property(\"documentId\");",
+                  "            pm.expect(item).to.have.property(\"originalFileName\");",
+                  "            pm.expect(item).to.have.property(\"processingStatus\");",
+                  "            pm.expect(item).to.have.property(\"createdAt\");",
+                  "            pm.expect(item).to.have.property(\"keywords\");",
+                  "        });",
+                  "    });",
+                  "}",
+                  ""
+                ],
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
+              }
+            },
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "const patientId =",
+                  "    pm.collectionVariables.get(\"patientId\");",
+                  "",
+                  "if (",
+                  "    !patientId ||",
+                  "    patientId === \"null\" ||",
+                  "    patientId === \"undefined\"",
+                  ") {",
+                  "    throw new Error(",
+                  "        \"patientId não está definido. Execute primeiro a requisição 'Cadastrar paciente'.\"",
+                  "    );",
+                  "}"
+                ],
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/patients/{{patientId}}/timeline",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "patients",
+                "{{patientId}}",
+                "timeline"
+              ]
+            },
+            "description": "Requer documents:read."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "04 - Documentos individuais",
+      "item": [
+        {
+          "name": "Consultar documento por ID",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "if (pm.response.code === 200) {",
+                  "    const body = pm.response.json();",
+                  "    const documentId =",
+                  "        pm.collectionVariables.get(\"documentId\");",
+                  "",
+                  "    pm.test(\"Documento possui os campos esperados\", function () {",
+                  "        pm.expect(body).to.have.property(\"id\");",
+                  "        pm.expect(body).to.have.property(\"patientId\");",
+                  "        pm.expect(body).to.have.property(\"originalFileName\");",
+                  "        pm.expect(body).to.have.property(\"contentType\");",
+                  "        pm.expect(body).to.have.property(\"fileSize\");",
+                  "        pm.expect(body).to.have.property(\"processingStatus\");",
+                  "        pm.expect(body).to.have.property(\"keywords\");",
+                  "    });",
+                  "",
+                  "    pm.test(\"ID corresponde à variável documentId\", function () {",
+                  "        pm.expect(body.id).to.eql(documentId);",
+                  "    });",
+                  "}",
+                  ""
+                ],
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
+              }
+            },
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "const documentId = pm.collectionVariables.get(\"documentId\");\r",
+                  "\r",
+                  "if (\r",
+                  "    !documentId ||\r",
+                  "    documentId === \"null\" ||\r",
+                  "    documentId === \"undefined\"\r",
+                  ") {\r",
+                  "    throw new Error(\r",
+                  "        \"documentId não está definido. Execute primeiro a requisição 'Enviar documento'.\"\r",
+                  "    );\r",
+                  "}\r",
+                  ""
+                ],
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/documents/{{documentId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "documents",
+                "{{documentId}}"
+              ]
+            },
+            "description": "Requer documents:read."
+          },
+          "response": []
+        },
+        {
+          "name": "Listar resultados processados",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "if (pm.response.code === 200) {",
+                  "    const body = pm.response.json();",
+                  "",
+                  "    pm.test(\"Resposta é uma lista\", function () {",
+                  "        pm.expect(body).to.be.an(\"array\");",
+                  "    });",
+                  "",
+                  "    if (body.length > 0) {",
+                  "        pm.test(\"Resultados possuem os campos esperados\", function () {",
+                  "            body.forEach(function (item) {",
+                  "                pm.expect(item).to.have.property(\"id\");",
+                  "                pm.expect(item).to.have.property(\"documentId\");",
+                  "            });",
+                  "        });",
+                  "    }",
+                  "}",
+                  ""
+                ],
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
+              }
+            },
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "const documentId =\r",
+                  "    pm.collectionVariables.get(\"documentId\");\r",
+                  "\r",
+                  "if (\r",
+                  "    !documentId ||\r",
+                  "    documentId === \"null\" ||\r",
+                  "    documentId === \"undefined\"\r",
+                  ") {\r",
+                  "    throw new Error(\r",
+                  "        \"documentId não está definido. Execute primeiro a requisição 'Enviar documento'.\"\r",
+                  "    );\r",
+                  "}\r",
+                  ""
+                ],
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/documents/{{documentId}}/processed-results",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "documents",
+                "{{documentId}}",
+                "processed-results"
+              ]
+            },
+            "description": "Requer documents:read. Um arquivo pode gerar múltiplos resultados clínicos."
+          },
+          "response": []
+        },
+        {
+          "name": "Baixar arquivo original - cliente de desenvolvimento",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "if (pm.response.code === 200) {",
+                  "    const contentType =",
+                  "        pm.response.headers.get(\"Content-Type\") || \"\";",
+                  "",
+                  "    const contentDisposition =",
+                  "        pm.response.headers.get(\"Content-Disposition\") || \"\";",
+                  "",
+                  "    const contentLengthHeader =",
+                  "        pm.response.headers.get(\"Content-Length\");",
+                  "",
+                  "    pm.test(\"Content-Type do arquivo está correto\", function () {",
+                  "        pm.expect(contentType).to.include(\"image/png\");",
+                  "    });",
+                  "",
+                  "    pm.test(\"Resposta contém nome de arquivo para download\", function () {",
+                  "        pm.expect(contentDisposition).to.include(\"attachment\");",
+                  "        pm.expect(contentDisposition).to.include(",
+                  "            \"exame-laboratorial-ficticio.png\"",
+                  "        );",
+                  "    });",
+                  "",
+                  "    pm.test(\"Arquivo retornado não está vazio\", function () {",
+                  "        if (contentLengthHeader) {",
+                  "            pm.expect(Number(contentLengthHeader)).to.be.above(0);",
+                  "        } else {",
+                  "            pm.expect(pm.response.responseSize).to.be.above(0);",
+                  "        }",
+                  "    });",
+                  "}"
+                ],
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
+              }
+            },
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "const documentId =\r",
+                  "    pm.collectionVariables.get(\"documentId\");\r",
+                  "\r",
+                  "if (\r",
+                  "    !documentId ||\r",
+                  "    documentId === \"null\" ||\r",
+                  "    documentId === \"undefined\"\r",
+                  ") {\r",
+                  "    throw new Error(\r",
+                  "        \"documentId não está definido. Execute primeiro a requisição 'Enviar documento'.\"\r",
+                  "    );\r",
+                  "}\r",
+                  ""
+                ],
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/documents/{{documentId}}/file",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "documents",
+                "{{documentId}}",
+                "file"
+              ]
+            },
+            "description": "Requer documents:file:read. Use Send and Download para salvar o arquivo."
+          },
+          "response": []
+        },
+        {
+          "name": "Atualizar resultado da IA manualmente",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "if (pm.response.code === 200) {",
+                  "    const body = pm.response.json();",
+                  "    const documentId =",
+                  "        pm.collectionVariables.get(\"documentId\");",
+                  "",
+                  "    pm.test(\"Documento atualizado corresponde ao documentId\", function () {",
+                  "        pm.expect(body.id).to.eql(documentId);",
+                  "    });",
+                  "",
+                  "    pm.test(\"Resultado da IA foi aplicado\", function () {",
+                  "        pm.expect(body.documentType).to.eql(",
+                  "            \"EXAME_LABORATORIAL\"",
+                  "        );",
+                  "",
+                  "        pm.expect(body.specialty).to.eql(",
+                  "            \"EXAMES_LABORATORIAIS\"",
+                  "        );",
+                  "",
+                  "        pm.expect(body.processingStatus).to.eql(",
+                  "            \"PROCESSED\"",
+                  "        );",
+                  "",
+                  "        pm.expect(body.confidence).to.eql(0.92);",
+                  "        pm.expect(body.keywords).to.be.an(\"array\");",
+                  "        pm.expect(body.keywords).to.include(\"glicemia\");",
+                  "    });",
+                  "}"
+                ],
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
+              }
+            },
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "const documentId =\r",
+                  "    pm.collectionVariables.get(\"documentId\");\r",
+                  "\r",
+                  "const aiAccessToken =\r",
+                  "    pm.collectionVariables.get(\"aiAccessToken\");\r",
+                  "\r",
+                  "if (\r",
+                  "    !documentId ||\r",
+                  "    documentId === \"null\" ||\r",
+                  "    documentId === \"undefined\"\r",
+                  ") {\r",
+                  "    throw new Error(\r",
+                  "        \"documentId não está definido. Execute primeiro a requisição 'Enviar documento'.\"\r",
+                  "    );\r",
+                  "}\r",
+                  "\r",
+                  "if (!aiAccessToken) {\r",
+                  "    throw new Error(\r",
+                  "        \"aiAccessToken não está definido. Execute primeiro 'Obter token - serviço de IA'.\"\r",
+                  "    );\r",
+                  "}"
+                ],
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{aiAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"documentType\": \"EXAME_LABORATORIAL\",\n  \"specialty\": \"EXAMES_LABORATORIAIS\",\n  \"documentDate\": \"2026-06-10\",\n  \"summary\": \"Exame laboratorial fictício contendo resultados simulados de glicemia, colesterol, triglicerídeos, hemoglobina e leucócitos.\",\n  \"keywords\": [\n    \"glicemia\",\n    \"colesterol\",\n    \"triglicerídeos\",\n    \"hemoglobina\",\n    \"leucócitos\"\n  ],\n  \"confidence\": 0.92,\n  \"status\": \"PROCESSED\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/documents/{{documentId}}/ai-result",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "documents",
+                "{{documentId}}",
+                "ai-result"
+              ]
+            },
+            "description": "Requer documents:ai-result:write."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "05 - Matriz de autorização",
+      "item": [
+        {
+          "name": "Sem token - listar pacientes deve retornar 401",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status 401\", function () {\r",
+                  "    pm.response.to.have.status(401);\r",
+                  "});\r",
+                  "\r",
+                  "pm.test(\"Cabeçalho WWW-Authenticate foi retornado\", function () {\r",
+                  "    const authenticate =\r",
+                  "        pm.response.headers.get(\"WWW-Authenticate\");\r",
+                  "\r",
+                  "    pm.expect(authenticate).to.be.a(\"string\").and.not.empty;\r",
+                  "    pm.expect(authenticate).to.include(\"Bearer\");\r",
+                  "});\r",
+                  ""
+                ],
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/patients",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "patients"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Token da IA - listar pacientes deve retornar 403",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status 403\", function () {\r",
+                  "    pm.response.to.have.status(403);\r",
+                  "});\r",
+                  "\r",
+                  "pm.test(\"Acesso negado por escopo insuficiente\", function () {\r",
+                  "    const authenticate =\r",
+                  "        pm.response.headers.get(\"WWW-Authenticate\");\r",
+                  "\r",
+                  "    pm.expect(authenticate).to.be.a(\"string\").and.not.empty;\r",
+                  "    pm.expect(authenticate).to.include(\"insufficient_scope\");\r",
+                  "});\r",
+                  ""
+                ],
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
+              }
+            },
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "const aiAccessToken =\r",
+                  "    pm.collectionVariables.get(\"aiAccessToken\");\r",
+                  "\r",
+                  "if (\r",
+                  "    !aiAccessToken ||\r",
+                  "    aiAccessToken === \"null\" ||\r",
+                  "    aiAccessToken === \"undefined\"\r",
+                  ") {\r",
+                  "    throw new Error(\r",
+                  "        \"aiAccessToken não está definido. Execute primeiro 'Obter token - serviço de IA'.\"\r",
+                  "    );\r",
+                  "}\r",
+                  ""
+                ],
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{aiAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/patients",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "patients"
+              ]
+            },
+            "description": "O cliente ai-processing-service não possui patients:read."
+          },
+          "response": []
+        },
+        {
+          "name": "Token da IA - baixar arquivo deve retornar 200",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status 200\", function () {\r",
+                  "    pm.response.to.have.status(200);\r",
+                  "});\r",
+                  "\r",
+                  "if (pm.response.code === 200) {\r",
+                  "    const contentType =\r",
+                  "        pm.response.headers.get(\"Content-Type\");\r",
+                  "\r",
+                  "    const contentDisposition =\r",
+                  "        pm.response.headers.get(\"Content-Disposition\");\r",
+                  "\r",
+                  "    const contentLengthHeader =\r",
+                  "        pm.response.headers.get(\"Content-Length\");\r",
+                  "\r",
+                  "    pm.test(\"Arquivo retornado é uma imagem PNG\", function () {\r",
+                  "        pm.expect(contentType).to.include(\"image/png\");\r",
+                  "    });\r",
+                  "\r",
+                  "    pm.test(\"Resposta contém nome do arquivo\", function () {\r",
+                  "        pm.expect(contentDisposition).to.be.a(\"string\");\r",
+                  "        pm.expect(contentDisposition).to.include(\"attachment\");\r",
+                  "        pm.expect(contentDisposition).to.include(\r",
+                  "            \"exame-laboratorial-ficticio.png\"\r",
+                  "        );\r",
+                  "    });\r",
+                  "\r",
+                  "    pm.test(\"Arquivo não está vazio\", function () {\r",
+                  "        if (contentLengthHeader) {\r",
+                  "            pm.expect(Number(contentLengthHeader)).to.be.above(0);\r",
+                  "        } else {\r",
+                  "            pm.expect(pm.response.responseSize).to.be.above(0);\r",
+                  "        }\r",
+                  "    });\r",
+                  "}\r",
+                  ""
+                ],
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
+              }
+            },
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "const documentId =\r",
+                  "    pm.collectionVariables.get(\"documentId\");\r",
+                  "\r",
+                  "const aiAccessToken =\r",
+                  "    pm.collectionVariables.get(\"aiAccessToken\");\r",
+                  "\r",
+                  "if (\r",
+                  "    !documentId ||\r",
+                  "    documentId === \"null\" ||\r",
+                  "    documentId === \"undefined\"\r",
+                  ") {\r",
+                  "    throw new Error(\r",
+                  "        \"documentId não está definido. Execute primeiro a requisição 'Enviar documento'.\"\r",
+                  "    );\r",
+                  "}\r",
+                  "\r",
+                  "if (\r",
+                  "    !aiAccessToken ||\r",
+                  "    aiAccessToken === \"null\" ||\r",
+                  "    aiAccessToken === \"undefined\"\r",
+                  ") {\r",
+                  "    throw new Error(\r",
+                  "        \"aiAccessToken não está definido. Execute primeiro 'Obter token - serviço de IA'.\"\r",
+                  "    );\r",
+                  "}\r",
+                  ""
+                ],
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{aiAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/documents/{{documentId}}/file",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "documents",
+                "{{documentId}}",
+                "file"
+              ]
+            },
+            "description": "O cliente ai-processing-service possui documents:file:read."
+          },
+          "response": []
+        }
+      ],
+      "description": "Testes úteis para conferir a aplicação das políticas diretamente e pelo Kong."
+    }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{accessToken}}",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    {
+      "key": "accessToken",
+      "value": ""
+    },
+    {
+      "key": "aiAccessToken",
+      "value": ""
+    },
+    {
+      "key": "patientId",
+      "value": ""
+    },
+    {
+      "key": "documentId",
+      "value": ""
+    }
+  ]
+}
