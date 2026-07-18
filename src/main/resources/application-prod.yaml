@@ -1,0 +1,11 @@
+server:
+  port: 8443
+  ssl:
+    enabled: true
+    client-auth: need
+    key-store-type: PKCS12
+    key-store: ${SERVER_SSL_KEY_STORE}
+    key-store-password: ${SSL_PASSWORD}
+    trust-store-type: PKCS12
+    trust-store: ${SERVER_SSL_TRUST_STORE}
+    trust-store-password: ${SSL_PASSWORD}
