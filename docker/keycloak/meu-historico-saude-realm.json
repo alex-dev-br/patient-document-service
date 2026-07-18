@@ -123,6 +123,7 @@
       "fullScopeAllowed": false,
       "defaultClientScopes": [
         "documents:file:read",
+        "documents:ai-result:write",
         "patient-document-api-audience"
       ]
     },
