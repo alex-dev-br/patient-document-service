@@ -3,37 +3,35 @@
 # ==========================================
 FROM maven:3.9.16-eclipse-temurin-25-alpine AS builder
 
-# Define o diretório de trabalho dentro do container
 WORKDIR /app
 
-# Copia apenas o arquivo de configuração de dependências primeiro (otimiza o cache do Docker)
+# Copia primeiro o arquivo de dependências para aproveitar o cache
 COPY pom.xml .
 
-# Baixa as dependências do projeto sem compilar o código (cache de camadas)
+# Baixa as dependências sem compilar o código
 RUN mvn dependency:go-offline -B
 
-# Copia a pasta de código fonte para o container
+# Copia o código-fonte
 COPY src ./src
 
-# Executa o build da aplicação gerando o arquivo .jar (ignora os testes para acelerar o processo)
+# Gera o arquivo executável da aplicação
 RUN mvn clean package -DskipTests
 
 # ==========================================
-# Estágio 2: Execução (Run)
+# Estágio 2: Execução (Runtime)
 # ==========================================
 FROM eclipse-temurin:25-jre-alpine-3.23
 
-# Define o diretório onde o jar final vai rodar
 WORKDIR /app
 
-# Copia o arquivo .jar gerado no estágio anterior (builder) para esta nova imagem limpa
-COPY --from=builder /app/target/*.jar app.jar
+# Cria usuário e grupo exclusivos, sem privilégios administrativos
+RUN addgroup -S appgroup && adduser -S -D -H -G appgroup appuser
 
-# Informa a porta que a aplicação escuta
+# Copia somente o artefato final, atribuindo-o ao usuário da aplicação
+COPY --from=builder --chown=appuser:appgroup /app/target/*.jar app.jar
+
 EXPOSE 8080
 
-# Define um usuário não-root por questões de segurança
-USER 1000
+USER appuser:appgroup
 
-# Comando para iniciar a aplicação Spring Boot
 ENTRYPOINT ["java", "-jar", "app.jar"]
