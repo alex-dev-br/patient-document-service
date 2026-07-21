@@ -1,3 +1,17 @@
+spring:
+  ssl:
+    bundle:
+      jks:
+        keycloak-client:
+          keystore:
+            location: ${SERVER_SSL_KEY_STORE}
+            password: ${SSL_PASSWORD}
+            type: PKCS12
+          truststore:
+            location: ${SERVER_SSL_TRUST_STORE}
+            password: ${SSL_PASSWORD}
+            type: PKCS12
+
 server:
   port: 8443
   ssl:
