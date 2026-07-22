@@ -16,6 +16,7 @@ import lombok.NoArgsConstructor;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.Map;
 import java.util.UUID;
@@ -42,6 +43,12 @@ public class DocumentProcessedInboxJpaEntity {
     @Id
     @Column(nullable = false)
     private UUID id;
+
+    @Column(name = "schema_version")
+    private Integer schemaVersion;
+
+    @Column(name = "occurred_at")
+    private Instant occurredAt;
 
     @Column(name = "event_id", nullable = false)
     private UUID eventId;
@@ -70,8 +77,14 @@ public class DocumentProcessedInboxJpaEntity {
     @Column(name = "payload", columnDefinition = "jsonb")
     private Map<String, Object> payload;
 
+    @Column(name = "error_code", length = 100)
+    private String errorCode;
+
     @Column(name = "error_detail", length = 2000)
     private String errorDetail;
+
+    @Column(name = "error_retryable")
+    private Boolean errorRetryable;
 
     @Column(name = "received_at", nullable = false)
     private LocalDateTime receivedAt;

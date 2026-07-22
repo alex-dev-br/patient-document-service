@@ -10,6 +10,8 @@ public class ProcessedDocumentResultWebMapper {
             ProcessedDocumentResult result
     ) {
         return new ProcessedDocumentResultResponse(
+                result.schemaVersion(),
+                result.occurredAt(),
                 result.eventId(),
                 result.documentId(),
                 result.patientId(),
@@ -17,7 +19,9 @@ public class ProcessedDocumentResultWebMapper {
                 result.externalDocumentType(),
                 result.status().name(),
                 result.payload(),
+                result.errorCode(),
                 result.errorDetail(),
+                result.errorRetryable(),
                 result.receivedAt()
         );
     }

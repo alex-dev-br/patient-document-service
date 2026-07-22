@@ -4,6 +4,7 @@ import br.com.fiap.techchallenge.patientdocument.TestcontainersConfiguration;
 import br.com.fiap.techchallenge.patientdocument.application.document.usecase.ProcessDocumentProcessedResponseUseCase;
 import br.com.fiap.techchallenge.patientdocument.domain.document.DocumentProcessingStatus;
 import br.com.fiap.techchallenge.patientdocument.domain.document.DocumentType;
+import br.com.fiap.techchallenge.patientdocument.infrastructure.messaging.kafka.validation.DocumentProcessedResponseValidator;
 import br.com.fiap.techchallenge.patientdocument.infrastructure.persistence.document.HealthDocumentJpaEntity;
 import br.com.fiap.techchallenge.patientdocument.infrastructure.persistence.document.HealthDocumentJpaRepository;
 import br.com.fiap.techchallenge.patientdocument.infrastructure.persistence.inbox.DocumentProcessedInboxJpaEntity;
@@ -16,6 +17,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.LinkedHashMap;
@@ -72,7 +74,10 @@ class DocumentProcessedResponseIntegrationTest {
         documentId = UUID.randomUUID();
         eventId = UUID.randomUUID();
 
-        listener = new DocumentProcessedResponseListener(useCase);
+        listener = new DocumentProcessedResponseListener(
+                useCase,
+                new DocumentProcessedResponseValidator()
+        );
 
         insertPatient();
         insertPendingDocument();
@@ -417,6 +422,146 @@ class DocumentProcessedResponseIntegrationTest {
                 .isNull();
     }
 
+    @Test
+    void shouldPersistVersionOneSuccessfulResponse() {
+        Map<String, Object> payload = successfulPayload(
+                FIRST_RESULT_ID,
+                "EXAME_HEMOGRAMA",
+                "2026-07-10T09:30:00",
+                FIRST_SUMMARY
+        );
+
+        listener.consume(
+                new DocumentProcessedResponseMessage(
+                        1,
+                        "DOCUMENT_PROCESSED_RESPONSE",
+                        Instant.parse("2026-07-21T18:00:00Z"),
+                        eventId,
+                        documentId,
+                        patientId,
+                        "PROCESSED",
+                        payload,
+                        null,
+                        null
+                )
+        );
+
+        List<DocumentProcessedInboxJpaEntity> results =
+                inboxRepository
+                        .findByDocumentIdOrderByReceivedAtAsc(documentId);
+
+        assertThat(results).hasSize(1);
+
+        DocumentProcessedInboxJpaEntity result =
+                results.getFirst();
+
+        assertThat(result.getSchemaVersion())
+                .isEqualTo(1);
+
+        assertThat(result.getOccurredAt())
+                .isEqualTo(
+                        Instant.parse("2026-07-21T18:00:00Z")
+                );
+
+        assertThat(result.getEventId())
+                .isEqualTo(eventId);
+
+        assertThat(result.getExternalResultId())
+                .isEqualTo(FIRST_RESULT_ID);
+
+        assertThat(result.getStatus())
+                .isEqualTo(DocumentProcessingStatus.PROCESSED);
+
+        assertThat(result.getErrorCode())
+                .isNull();
+
+        assertThat(result.getErrorDetail())
+                .isNull();
+
+        assertThat(result.getErrorRetryable())
+                .isNull();
+
+        HealthDocumentJpaEntity document =
+                findDocument();
+
+        assertThat(document.getProcessingStatus())
+                .isEqualTo(
+                        DocumentProcessingStatus.PROCESSED.name()
+                );
+
+        assertThat(document.getSummary())
+                .isEqualTo(FIRST_SUMMARY);
+    }
+
+    @Test
+    void shouldPersistVersionOneStructuredFailure() {
+        listener.consume(
+                new DocumentProcessedResponseMessage(
+                        1,
+                        "DOCUMENT_PROCESSED_RESPONSE",
+                        Instant.parse("2026-07-21T18:00:00Z"),
+                        eventId,
+                        documentId,
+                        patientId,
+                        "FAILED",
+                        null,
+                        new DocumentProcessingErrorMessage(
+                                "AI_QUOTA_EXCEEDED",
+                                "Limite temporário do serviço de IA atingido.",
+                                true
+                        ),
+                        null
+                )
+        );
+
+        List<DocumentProcessedInboxJpaEntity> results =
+                inboxRepository
+                        .findByDocumentIdOrderByReceivedAtAsc(documentId);
+
+        assertThat(results).hasSize(1);
+
+        DocumentProcessedInboxJpaEntity result =
+                results.getFirst();
+
+        assertThat(result.getSchemaVersion())
+                .isEqualTo(1);
+
+        assertThat(result.getOccurredAt())
+                .isEqualTo(
+                        Instant.parse("2026-07-21T18:00:00Z")
+                );
+
+        assertThat(result.getExternalResultId())
+                .isEqualTo("FAILED");
+
+        assertThat(result.getStatus())
+                .isEqualTo(DocumentProcessingStatus.FAILED);
+
+        assertThat(result.getPayload())
+                .isNull();
+
+        assertThat(result.getErrorCode())
+                .isEqualTo("AI_QUOTA_EXCEEDED");
+
+        assertThat(result.getErrorDetail())
+                .isEqualTo(
+                        "Limite temporário do serviço de IA atingido."
+                );
+
+        assertThat(result.getErrorRetryable())
+                .isTrue();
+
+        HealthDocumentJpaEntity document =
+                findDocument();
+
+        assertThat(document.getProcessingStatus())
+                .isEqualTo(
+                        DocumentProcessingStatus.FAILED.name()
+                );
+
+        assertThat(document.getProcessedAt())
+                .isNotNull();
+    }
     private DocumentProcessedResponseMessage successMessage(
             Map<String, Object> payload
     ) {

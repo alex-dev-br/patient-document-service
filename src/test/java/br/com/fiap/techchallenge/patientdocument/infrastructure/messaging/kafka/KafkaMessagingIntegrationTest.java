@@ -12,7 +12,11 @@ import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
+import org.apache.kafka.clients.producer.KafkaProducer;
+import org.apache.kafka.clients.producer.ProducerConfig;
+import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.common.serialization.StringDeserializer;
+import org.apache.kafka.common.serialization.StringSerializer;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -25,6 +29,7 @@ import org.springframework.kafka.core.KafkaTemplate;
 import org.testcontainers.kafka.KafkaContainer;
 
 import java.time.Duration;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.LinkedHashMap;
@@ -59,6 +64,9 @@ class KafkaMessagingIntegrationTest {
 
     private static final Duration ASYNC_TIMEOUT =
             Duration.ofSeconds(20);
+
+    private static final Instant OCCURRED_AT =
+            Instant.parse("2026-07-21T18:00:00Z");
 
     @Autowired
     private KafkaTemplate<Object, Object> kafkaTemplate;
@@ -104,7 +112,7 @@ class KafkaMessagingIntegrationTest {
     }
 
     @Test
-    void shouldConsumeValidMessageAndPersistProcessedResult()
+    void shouldConsumeValidVersionOneMessageAndPersistProcessedResult()
             throws Exception {
         DocumentProcessedResponseMessage message =
                 successfulMessage(eventId);
@@ -135,6 +143,12 @@ class KafkaMessagingIntegrationTest {
         DocumentProcessedInboxJpaEntity result =
                 results.getFirst();
 
+        assertThat(result.getSchemaVersion())
+                .isEqualTo(1);
+
+        assertThat(result.getOccurredAt())
+                .isEqualTo(OCCURRED_AT);
+
         assertThat(result.getEventId())
                 .isEqualTo(eventId);
 
@@ -152,6 +166,15 @@ class KafkaMessagingIntegrationTest {
 
         assertThat(result.getStatus())
                 .isEqualTo(DocumentProcessingStatus.PROCESSED);
+
+        assertThat(result.getErrorCode())
+                .isNull();
+
+        assertThat(result.getErrorDetail())
+                .isNull();
+
+        assertThat(result.getErrorRetryable())
+                .isNull();
 
         assertThat(result.getPayload())
                 .containsEntry("id", EXTERNAL_RESULT_ID)
@@ -255,9 +278,230 @@ class KafkaMessagingIntegrationTest {
         }
     }
 
+    @Test
+    void shouldConsumeVersionOneStructuredFailure()
+            throws Exception {
+        DocumentProcessedResponseMessage message =
+                new DocumentProcessedResponseMessage(
+                        1,
+                        "DOCUMENT_PROCESSED_RESPONSE",
+                        OCCURRED_AT,
+                        eventId,
+                        documentId,
+                        patientId,
+                        "FAILED",
+                        null,
+                        new DocumentProcessingErrorMessage(
+                                "AI_QUOTA_EXCEEDED",
+                                "Limite temporário do serviço de IA atingido.",
+                                true
+                        ),
+                        null
+                );
+
+        kafkaTemplate
+                .send(
+                        processedResponseTopic,
+                        documentId.toString(),
+                        message
+                )
+                .get(10, TimeUnit.SECONDS);
+
+        awaitCondition(
+                () -> inboxRepository.count() == 1
+                        && hasDocumentStatus(
+                        DocumentProcessingStatus.FAILED
+                ),
+                ASYNC_TIMEOUT,
+                "A falha v1 não foi processada pelo listener."
+        );
+
+        List<DocumentProcessedInboxJpaEntity> results =
+                inboxRepository
+                        .findByDocumentIdOrderByReceivedAtAsc(documentId);
+
+        assertThat(results).hasSize(1);
+
+        DocumentProcessedInboxJpaEntity result =
+                results.getFirst();
+
+        assertThat(result.getSchemaVersion())
+                .isEqualTo(1);
+
+        assertThat(result.getOccurredAt())
+                .isEqualTo(OCCURRED_AT);
+
+        assertThat(result.getStatus())
+                .isEqualTo(DocumentProcessingStatus.FAILED);
+
+        assertThat(result.getPayload())
+                .isNull();
+
+        assertThat(result.getErrorCode())
+                .isEqualTo("AI_QUOTA_EXCEEDED");
+
+        assertThat(result.getErrorDetail())
+                .isEqualTo(
+                        "Limite temporário do serviço de IA atingido."
+                );
+
+        assertThat(result.getErrorRetryable())
+                .isTrue();
+
+        HealthDocumentJpaEntity document =
+                findDocument();
+
+        assertThat(document.getProcessingStatus())
+                .isEqualTo(
+                        DocumentProcessingStatus.FAILED.name()
+                );
+    }
+
+    @Test
+    void shouldSendInvalidVersionOneContractToDlt()
+            throws Exception {
+        try (
+                KafkaConsumer<String, String> dltConsumer =
+                        createDltConsumer()
+        ) {
+            subscribeAndWaitForAssignment(dltConsumer);
+
+            DocumentProcessedResponseMessage invalidMessage =
+                    new DocumentProcessedResponseMessage(
+                            1,
+                            "INVALID_EVENT_TYPE",
+                            OCCURRED_AT,
+                            eventId,
+                            documentId,
+                            patientId,
+                            "PROCESSED",
+                            successfulPayload(),
+                            null,
+                            null
+                    );
+
+            kafkaTemplate
+                    .send(
+                            processedResponseTopic,
+                            documentId.toString(),
+                            invalidMessage
+                    )
+                    .get(10, TimeUnit.SECONDS);
+
+            ConsumerRecord<String, String> dltRecord =
+                    awaitDltRecord(
+                            dltConsumer,
+                            ASYNC_TIMEOUT
+                    );
+
+            assertThat(dltRecord.topic())
+                    .isEqualTo(processedResponseDltTopic);
+
+            assertThat(dltRecord.key())
+                    .isEqualTo(documentId.toString());
+
+            assertThat(dltRecord.value())
+                    .contains("INVALID_EVENT_TYPE")
+                    .contains(eventId.toString())
+                    .contains(documentId.toString())
+                    .contains(patientId.toString());
+
+            assertThat(inboxRepository.count())
+                    .isZero();
+
+            HealthDocumentJpaEntity document =
+                    findDocument();
+
+            assertThat(document.getProcessingStatus())
+                    .isEqualTo(
+                            DocumentProcessingStatus
+                                    .PENDING_PROCESSING
+                                    .name()
+                    );
+        }
+    }
+    @Test
+    void shouldIgnoreUnknownFieldsWhileDeserializingVersionOneFailure()
+            throws Exception {
+        String rawMessage = """
+                {
+                  "schemaVersion": 1,
+                  "eventType": "DOCUMENT_PROCESSED_RESPONSE",
+                  "occurredAt": "2026-07-21T18:00:00Z",
+                  "eventId": "%s",
+                  "documentId": "%s",
+                  "patientId": "%s",
+                  "status": "FAILED",
+                  "document": null,
+                  "error": {
+                    "code": "AI_PROVIDER_UNAVAILABLE",
+                    "message": "Serviço de IA temporariamente indisponível.",
+                    "retryable": true,
+                    "providerMetadata": "deve ser ignorado"
+                  },
+                  "errorDetail": null,
+                  "futureEnvelopeField": "deve ser ignorado"
+                }
+                """.formatted(
+                eventId,
+                documentId,
+                patientId
+        );
+
+        sendRawJson(
+                documentId.toString(),
+                rawMessage
+        );
+
+        awaitCondition(
+                () -> inboxRepository.count() == 1
+                        && hasDocumentStatus(
+                        DocumentProcessingStatus.FAILED
+                ),
+                ASYNC_TIMEOUT,
+                "O JSON v1 com campos desconhecidos não foi processado."
+        );
+
+        DocumentProcessedInboxJpaEntity result =
+                inboxRepository
+                        .findByDocumentIdOrderByReceivedAtAsc(documentId)
+                        .getFirst();
+
+        assertThat(result.getSchemaVersion())
+                .isEqualTo(1);
+
+        assertThat(result.getOccurredAt())
+                .isEqualTo(OCCURRED_AT);
+
+        assertThat(result.getErrorCode())
+                .isEqualTo("AI_PROVIDER_UNAVAILABLE");
+
+        assertThat(result.getErrorDetail())
+                .isEqualTo(
+                        "Serviço de IA temporariamente indisponível."
+                );
+
+        assertThat(result.getErrorRetryable())
+                .isTrue();
+    }
     private DocumentProcessedResponseMessage successfulMessage(
             UUID messageEventId
     ) {
+        return new DocumentProcessedResponseMessage(
+                1,
+                "DOCUMENT_PROCESSED_RESPONSE",
+                OCCURRED_AT,
+                messageEventId,
+                documentId,
+                patientId,
+                "PROCESSED",
+                successfulPayload(),
+                null,
+                null
+        );
+    }
+
+    private Map<String, Object> successfulPayload() {
         Map<String, Object> payload =
                 new LinkedHashMap<>();
 
@@ -270,16 +514,37 @@ class KafkaMessagingIntegrationTest {
         );
         payload.put("descricaoGeral", SUMMARY);
 
-        return new DocumentProcessedResponseMessage(
-                messageEventId,
-                documentId,
-                patientId,
-                null,
-                payload,
-                null
-        );
+        return payload;
     }
 
+    private void sendRawJson(
+            String key,
+            String value
+    ) throws Exception {
+        Properties properties = new Properties();
+
+        properties.put(
+                ProducerConfig.BOOTSTRAP_SERVERS_CONFIG,
+                kafkaContainer.getBootstrapServers()
+        );
+
+        try (
+                KafkaProducer<String, String> producer =
+                        new KafkaProducer<>(
+                                properties,
+                                new StringSerializer(),
+                                new StringSerializer()
+                        )
+        ) {
+            producer.send(
+                    new ProducerRecord<>(
+                            processedResponseTopic,
+                            key,
+                            value
+                    )
+            ).get(10, TimeUnit.SECONDS);
+        }
+    }
     private KafkaConsumer<String, String> createDltConsumer() {
         Properties properties = new Properties();
 
@@ -340,6 +605,8 @@ class KafkaMessagingIntegrationTest {
                                 + "uma partição da DLT."
                 )
                 .isNotEmpty();
+
+        consumer.seekToEnd(consumer.assignment());
     }
 
     private ConsumerRecord<String, String> awaitDltRecord(

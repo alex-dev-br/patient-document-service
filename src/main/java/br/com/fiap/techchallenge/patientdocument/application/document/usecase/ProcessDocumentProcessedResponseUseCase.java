@@ -60,6 +60,8 @@ public class ProcessDocumentProcessedResponseUseCase {
 
         ProcessedDocumentResult result = new ProcessedDocumentResult(
                 UUID.randomUUID(),
+                command.schemaVersion(),
+                command.occurredAt(),
                 command.eventId(),
                 command.documentId(),
                 command.patientId(),
@@ -67,7 +69,9 @@ public class ProcessDocumentProcessedResponseUseCase {
                 extractText(payload, "documentType"),
                 status,
                 payload,
+                truncate(command.errorCode(), 100),
                 truncate(command.errorDetail(), 2000),
+                command.errorRetryable(),
                 LocalDateTime.now()
         );
 
