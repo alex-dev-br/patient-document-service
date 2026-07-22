@@ -10,6 +10,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.ZoneId;
 import java.util.UUID;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -21,6 +22,9 @@ import java.util.concurrent.TimeoutException;
         havingValue = "true"
 )
 public class DocumentProcessingOutboxProcessor {
+
+    private static final ZoneId SAO_PAULO_ZONE_ID =
+            ZoneId.of("America/Sao_Paulo");
 
     private final DocumentProcessingOutboxJpaRepository repository;
     private final HealthDocumentJpaRepository healthDocumentJpaRepository;
@@ -61,12 +65,16 @@ public class DocumentProcessingOutboxProcessor {
 
         outboxEvent.registerAttempt();
 
-        var message = new DocumentProcessingRequestedMessage(
-                outboxEvent.getEventId(),
-                outboxEvent.getDocumentId(),
-                outboxEvent.getPatientId(),
-                buildFileUrl(outboxEvent.getDocumentId())
-        );
+        var message =
+                DocumentProcessingRequestedMessage.versionOne(
+                        outboxEvent.getCreatedAt()
+                                .atZone(SAO_PAULO_ZONE_ID)
+                                .toInstant(),
+                        outboxEvent.getEventId(),
+                        outboxEvent.getDocumentId(),
+                        outboxEvent.getPatientId(),
+                        buildFileUrl(outboxEvent.getDocumentId())
+                );
 
         try {
             kafkaTemplate.send(
@@ -79,18 +87,26 @@ public class DocumentProcessingOutboxProcessor {
             outboxEvent.markPublished();
         } catch (InterruptedException exception) {
             Thread.currentThread().interrupt();
-            outboxEvent.markFailed(resolveErrorMessage(exception));
+            outboxEvent.markFailed(
+                    resolveErrorMessage(exception)
+            );
         } catch (ExecutionException
                  | TimeoutException
                  | RuntimeException exception) {
-            outboxEvent.markFailed(resolveErrorMessage(exception));
+            outboxEvent.markFailed(
+                    resolveErrorMessage(exception)
+            );
         }
     }
 
     private String buildFileUrl(UUID documentId) {
         return healthDocumentJpaRepository
                 .findById(documentId)
-                .orElseThrow(() -> new RuntimeException("Documento sem path"))
+                .orElseThrow(
+                        () -> new RuntimeException(
+                                "Documento sem path"
+                        )
+                )
                 .getStoragePath();
     }
 

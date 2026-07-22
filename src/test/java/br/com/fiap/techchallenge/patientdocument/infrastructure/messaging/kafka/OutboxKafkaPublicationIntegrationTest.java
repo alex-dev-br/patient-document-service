@@ -26,6 +26,7 @@ import org.testcontainers.kafka.KafkaContainer;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
@@ -52,6 +53,18 @@ class OutboxKafkaPublicationIntegrationTest {
 
     private static final Duration NO_MESSAGE_TIMEOUT =
             Duration.ofSeconds(2);
+
+    private static final ZoneId SAO_PAULO_ZONE_ID =
+            ZoneId.of("America/Sao_Paulo");
+
+    private static final LocalDateTime OUTBOX_CREATED_AT =
+            LocalDateTime.of(
+                    2026,
+                    7,
+                    22,
+                    1,
+                    0
+            );
 
     @Autowired
     private DocumentProcessingOutboxProcessor outboxProcessor;
@@ -131,6 +144,18 @@ class OutboxKafkaPublicationIntegrationTest {
                     .isEqualTo(documentId.toString());
 
             assertThat(record.value())
+                    .contains(
+                            "\"schemaVersion\":1"
+                    )
+                    .contains(
+                            "\"eventType\":"
+                                    + "\"DOCUMENT_PROCESSING_REQUESTED\""
+                    )
+                    .contains(
+                            "\"occurredAt\":\""
+                                    + expectedOccurredAt()
+                                    + "\""
+                    )
                     .contains(
                             "\"eventId\":\""
                                     + eventId
@@ -335,6 +360,13 @@ class OutboxKafkaPublicationIntegrationTest {
                 .orElseThrow();
     }
 
+    private String expectedOccurredAt() {
+        return OUTBOX_CREATED_AT
+                .atZone(SAO_PAULO_ZONE_ID)
+                .toInstant()
+                .toString();
+    }
+
     private String expectedFileUrl() {
         return "/documentos/arquivo-outbox.pdf";
     }
@@ -416,7 +448,7 @@ class OutboxKafkaPublicationIntegrationTest {
                 DocumentProcessingOutboxStatus.PENDING.name(),
                 0,
                 null,
-                LocalDateTime.now(),
+                OUTBOX_CREATED_AT,
                 null
         );
     }
