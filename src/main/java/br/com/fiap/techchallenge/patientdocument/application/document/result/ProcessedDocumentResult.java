@@ -3,6 +3,7 @@ package br.com.fiap.techchallenge.patientdocument.application.document.result;
 import br.com.fiap.techchallenge.patientdocument.domain.document.DocumentProcessingStatus;
 
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -15,10 +16,12 @@ public record ProcessedDocumentResult(
         Integer schemaVersion,
         Instant occurredAt,
         UUID eventId,
+        UUID correlationId,
         UUID documentId,
         UUID patientId,
         String externalResultId,
         String externalDocumentType,
+        LocalDate documentDate,
         DocumentProcessingStatus status,
         Map<String, Object> payload,
         String errorCode,
@@ -28,14 +31,30 @@ public record ProcessedDocumentResult(
 ) {
 
     public ProcessedDocumentResult {
-        Objects.requireNonNull(id, "O id do resultado é obrigatório.");
-        Objects.requireNonNull(eventId, "O eventId é obrigatório.");
-        Objects.requireNonNull(documentId, "O documentId é obrigatório.");
-        Objects.requireNonNull(patientId, "O patientId é obrigatório.");
+        Objects.requireNonNull(
+                id,
+                "O id do resultado é obrigatório."
+        );
+
+        Objects.requireNonNull(
+                eventId,
+                "O eventId é obrigatório."
+        );
+
+        Objects.requireNonNull(
+                documentId,
+                "O documentId é obrigatório."
+        );
+
+        Objects.requireNonNull(
+                patientId,
+                "O patientId é obrigatório."
+        );
 
         Objects.requireNonNull(
                 externalResultId,
-                "O identificador externo do resultado é obrigatório."
+                "O identificador externo do resultado "
+                        + "é obrigatório."
         );
 
         Objects.requireNonNull(
@@ -64,6 +83,45 @@ public record ProcessedDocumentResult(
     }
 
     /*
+     * Construtor compatível com o consumidor anterior.
+     */
+    public ProcessedDocumentResult(
+            UUID id,
+            Integer schemaVersion,
+            Instant occurredAt,
+            UUID eventId,
+            UUID documentId,
+            UUID patientId,
+            String externalResultId,
+            String externalDocumentType,
+            DocumentProcessingStatus status,
+            Map<String, Object> payload,
+            String errorCode,
+            String errorDetail,
+            Boolean errorRetryable,
+            LocalDateTime receivedAt
+    ) {
+        this(
+                id,
+                schemaVersion,
+                occurredAt,
+                eventId,
+                null,
+                documentId,
+                patientId,
+                externalResultId,
+                externalDocumentType,
+                null,
+                status,
+                payload,
+                errorCode,
+                errorDetail,
+                errorRetryable,
+                receivedAt
+        );
+    }
+
+    /*
      * Construtor legado temporário.
      */
     public ProcessedDocumentResult(
@@ -83,10 +141,12 @@ public record ProcessedDocumentResult(
                 null,
                 null,
                 eventId,
+                null,
                 documentId,
                 patientId,
                 externalResultId,
                 externalDocumentType,
+                null,
                 status,
                 payload,
                 null,
