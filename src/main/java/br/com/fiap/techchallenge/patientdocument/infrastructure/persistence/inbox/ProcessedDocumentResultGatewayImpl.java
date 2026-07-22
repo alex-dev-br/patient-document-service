@@ -33,6 +33,8 @@ public class ProcessedDocumentResultGatewayImpl
         DocumentProcessedInboxJpaEntity entity =
                 DocumentProcessedInboxJpaEntity.builder()
                         .id(result.id())
+                        .schemaVersion(result.schemaVersion())
+                        .occurredAt(result.occurredAt())
                         .eventId(result.eventId())
                         .documentId(result.documentId())
                         .patientId(result.patientId())
@@ -42,7 +44,9 @@ public class ProcessedDocumentResultGatewayImpl
                         )
                         .status(result.status())
                         .payload(result.payload())
+                        .errorCode(result.errorCode())
                         .errorDetail(result.errorDetail())
+                        .errorRetryable(result.errorRetryable())
                         .receivedAt(result.receivedAt())
                         .build();
 
@@ -65,6 +69,8 @@ public class ProcessedDocumentResultGatewayImpl
     ) {
         return new ProcessedDocumentResult(
                 entity.getId(),
+                entity.getSchemaVersion(),
+                entity.getOccurredAt(),
                 entity.getEventId(),
                 entity.getDocumentId(),
                 entity.getPatientId(),
@@ -72,7 +78,9 @@ public class ProcessedDocumentResultGatewayImpl
                 entity.getExternalDocumentType(),
                 entity.getStatus(),
                 entity.getPayload(),
+                entity.getErrorCode(),
                 entity.getErrorDetail(),
+                entity.getErrorRetryable(),
                 entity.getReceivedAt()
         );
     }
