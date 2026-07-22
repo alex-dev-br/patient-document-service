@@ -21,11 +21,25 @@ public class KafkaErrorHandlingConfig {
     @Bean
     public DefaultErrorHandler kafkaErrorHandler(
             KafkaTemplate<Object, Object> kafkaTemplate,
-            @Value("${app.messaging.kafka.topics.processed-response-dlt}")
-            String deadLetterTopic,
-            @Value("${app.messaging.kafka.listener-retry-interval}")
+            @Value(
+                    "${app.messaging.kafka.topics.processed-response-dlt}"
+            )
+            String legacyDeadLetterTopic,
+            @Value(
+                    "${app.messaging.kafka.topics.processing-result}"
+            )
+            String processingResultTopic,
+            @Value(
+                    "${app.messaging.kafka.topics.processing-result-dlt}"
+            )
+            String processingResultDeadLetterTopic,
+            @Value(
+                    "${app.messaging.kafka.listener-retry-interval}"
+            )
             long retryInterval,
-            @Value("${app.messaging.kafka.listener-max-retries}")
+            @Value(
+                    "${app.messaging.kafka.listener-max-retries}"
+            )
             long maxRetries
     ) {
         DeadLetterPublishingRecoverer recoverer =
@@ -33,7 +47,12 @@ public class KafkaErrorHandlingConfig {
                         kafkaTemplate,
                         (record, exception) ->
                                 new TopicPartition(
-                                        deadLetterTopic,
+                                        resolveDeadLetterTopic(
+                                                record.topic(),
+                                                processingResultTopic,
+                                                processingResultDeadLetterTopic,
+                                                legacyDeadLetterTopic
+                                        ),
                                         record.partition()
                                 )
                 );
@@ -48,8 +67,9 @@ public class KafkaErrorHandlingConfig {
                 );
 
         /*
-         * Erros de contrato ou de validação são definitivos.
-         * Repetir a mesma mensagem não corrigiria esses dados.
+         * Erros de contrato, correlação, autorização de
+         * paciente ou recurso inexistente são definitivos.
+         * Repetir a mesma mensagem não corrigiria os dados.
          */
         errorHandler.addNotRetryableExceptions(
                 IllegalArgumentException.class,
@@ -57,5 +77,18 @@ public class KafkaErrorHandlingConfig {
         );
 
         return errorHandler;
+    }
+
+    private String resolveDeadLetterTopic(
+            String sourceTopic,
+            String processingResultTopic,
+            String processingResultDeadLetterTopic,
+            String legacyDeadLetterTopic
+    ) {
+        if (processingResultTopic.equals(sourceTopic)) {
+            return processingResultDeadLetterTopic;
+        }
+
+        return legacyDeadLetterTopic;
     }
 }

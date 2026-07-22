@@ -16,33 +16,55 @@ public class KafkaTopicConfig {
 
     @Bean
     public NewTopic documentProcessingRequestedTopic(
-            @Value("${app.messaging.kafka.topics.processing-requested}")
+            @Value(
+                    "${app.messaging.kafka.topics.processing-requested}"
+            )
             String topic
     ) {
-        return TopicBuilder
-                .name(topic)
-                .partitions(1)
-                .replicas(1)
-                .build();
+        return createTopic(topic);
     }
 
     @Bean
     public NewTopic documentProcessedResponseTopic(
-            @Value("${app.messaging.kafka.topics.processed-response}")
+            @Value(
+                    "${app.messaging.kafka.topics.processed-response}"
+            )
             String topic
     ) {
-        return TopicBuilder
-                .name(topic)
-                .partitions(1)
-                .replicas(1)
-                .build();
+        return createTopic(topic);
     }
 
     @Bean
     public NewTopic documentProcessedResponseDltTopic(
-            @Value("${app.messaging.kafka.topics.processed-response-dlt}")
+            @Value(
+                    "${app.messaging.kafka.topics.processed-response-dlt}"
+            )
             String topic
     ) {
+        return createTopic(topic);
+    }
+
+    @Bean
+    public NewTopic documentProcessingResultTopic(
+            @Value(
+                    "${app.messaging.kafka.topics.processing-result}"
+            )
+            String topic
+    ) {
+        return createTopic(topic);
+    }
+
+    @Bean
+    public NewTopic documentProcessingResultDltTopic(
+            @Value(
+                    "${app.messaging.kafka.topics.processing-result-dlt}"
+            )
+            String topic
+    ) {
+        return createTopic(topic);
+    }
+
+    private NewTopic createTopic(String topic) {
         return TopicBuilder
                 .name(topic)
                 .partitions(1)
