@@ -16,6 +16,7 @@ import org.apache.kafka.common.serialization.StringDeserializer;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -28,8 +29,10 @@ import org.springframework.transaction.support.TransactionTemplate;
 import org.testcontainers.kafka.KafkaContainer;
 
 import java.time.Duration;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
@@ -65,6 +68,18 @@ class OutboxFailureRetryIntegrationTest {
             "Kafka indisponível durante a primeira tentativa.";
 
     private static final int MAX_ATTEMPTS = 3;
+
+    private static final ZoneId SAO_PAULO_ZONE_ID =
+            ZoneId.of("America/Sao_Paulo");
+
+    private static final LocalDateTime OUTBOX_CREATED_AT =
+            LocalDateTime.of(
+                    2026,
+                    7,
+                    22,
+                    1,
+                    0
+            );
 
     @Autowired
     private DocumentProcessingOutboxProcessor realOutboxProcessor;
@@ -128,12 +143,41 @@ class OutboxFailureRetryIntegrationTest {
                 failingKafkaTemplate
         );
 
+        ArgumentCaptor<DocumentProcessingRequestedMessage>
+                messageCaptor =
+                ArgumentCaptor.forClass(
+                        DocumentProcessingRequestedMessage.class
+                );
+
         verify(failingKafkaTemplate)
                 .send(
                         eq(processingRequestedTopic),
                         eq(documentId.toString()),
-                        any(DocumentProcessingRequestedMessage.class)
+                        messageCaptor.capture()
                 );
+
+        DocumentProcessingRequestedMessage firstAttemptMessage =
+                messageCaptor.getValue();
+
+        assertThat(firstAttemptMessage.schemaVersion())
+                .isEqualTo(1);
+
+        assertThat(firstAttemptMessage.eventType())
+                .isEqualTo(
+                        "DOCUMENT_PROCESSING_REQUESTED"
+                );
+
+        assertThat(firstAttemptMessage.occurredAt())
+                .isEqualTo(expectedOccurredAt());
+
+        assertThat(firstAttemptMessage.eventId())
+                .isEqualTo(eventId);
+
+        assertThat(firstAttemptMessage.documentId())
+                .isEqualTo(documentId);
+
+        assertThat(firstAttemptMessage.patientId())
+                .isEqualTo(patientId);
 
         DocumentProcessingOutboxJpaEntity failedEvent =
                 findOutboxEvent();
@@ -187,6 +231,18 @@ class OutboxFailureRetryIntegrationTest {
                     .isEqualTo(documentId.toString());
 
             assertThat(record.value())
+                    .contains(
+                            "\"schemaVersion\":1"
+                    )
+                    .contains(
+                            "\"eventType\":"
+                                    + "\"DOCUMENT_PROCESSING_REQUESTED\""
+                    )
+                    .contains(
+                            "\"occurredAt\":\""
+                                    + expectedOccurredAt()
+                                    + "\""
+                    )
                     .contains(
                             "\"eventId\":\""
                                     + eventId
@@ -398,6 +454,12 @@ class OutboxFailureRetryIntegrationTest {
                 .orElseThrow();
     }
 
+    private Instant expectedOccurredAt() {
+        return OUTBOX_CREATED_AT
+                .atZone(SAO_PAULO_ZONE_ID)
+                .toInstant();
+    }
+
     private String expectedFileUrl() {
         return "/documentos/arquivo-outbox-retry.pdf";
     }
@@ -479,7 +541,7 @@ class OutboxFailureRetryIntegrationTest {
                 DocumentProcessingOutboxStatus.PENDING.name(),
                 0,
                 null,
-                LocalDateTime.now(),
+                OUTBOX_CREATED_AT,
                 null
         );
     }
