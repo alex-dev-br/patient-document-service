@@ -23,3 +23,21 @@ server:
     trust-store-type: PKCS12
     trust-store: ${SERVER_SSL_TRUST_STORE}
     trust-store-password: ${SSL_PASSWORD}
+
+management:
+  server:
+    port: 8081
+    address: 127.0.0.1
+    ssl:
+      enabled: false
+
+  endpoints:
+    web:
+      exposure:
+        include: health
+
+  endpoint:
+    health:
+      show-details: never
+      probes:
+        enabled: true
