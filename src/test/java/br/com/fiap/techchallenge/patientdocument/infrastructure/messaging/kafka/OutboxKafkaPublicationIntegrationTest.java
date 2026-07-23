@@ -175,6 +175,9 @@ class OutboxKafkaPublicationIntegrationTest {
                             "\"fileUrl\":\""
                                     + expectedFileUrl()
                                     + "\""
+                    )
+                    .contains(
+                            "\"contentType\":\"application/pdf\""
                     );
 
             DocumentProcessingOutboxJpaEntity persistedEvent =

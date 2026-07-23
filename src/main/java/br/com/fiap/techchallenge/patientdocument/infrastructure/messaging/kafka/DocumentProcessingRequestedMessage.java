@@ -11,13 +11,16 @@ public record DocumentProcessingRequestedMessage(
         UUID eventId,
         UUID documentId,
         UUID patientId,
-        String fileUrl
+        String fileUrl,
+        String contentType
 ) {
 
     public static final int SCHEMA_VERSION = 1;
 
     public static final String EVENT_TYPE =
             "DOCUMENT_PROCESSING_REQUESTED";
+
+    private static final int CONTENT_TYPE_MAX_LENGTH = 100;
 
     public DocumentProcessingRequestedMessage {
         if (schemaVersion != SCHEMA_VERSION) {
@@ -58,6 +61,20 @@ public record DocumentProcessingRequestedMessage(
                     "O fileUrl é obrigatório."
             );
         }
+
+        if (contentType == null || contentType.isBlank()) {
+            throw new IllegalArgumentException(
+                    "O contentType é obrigatório."
+            );
+        }
+
+        if (contentType.length() > CONTENT_TYPE_MAX_LENGTH) {
+            throw new IllegalArgumentException(
+                    "O contentType deve possuir no máximo "
+                            + CONTENT_TYPE_MAX_LENGTH
+                            + " caracteres."
+            );
+        }
     }
 
     public static DocumentProcessingRequestedMessage versionOne(
@@ -65,7 +82,8 @@ public record DocumentProcessingRequestedMessage(
             UUID eventId,
             UUID documentId,
             UUID patientId,
-            String fileUrl
+            String fileUrl,
+            String contentType
     ) {
         return new DocumentProcessingRequestedMessage(
                 SCHEMA_VERSION,
@@ -74,7 +92,8 @@ public record DocumentProcessingRequestedMessage(
                 eventId,
                 documentId,
                 patientId,
-                fileUrl
+                fileUrl,
+                contentType
         );
     }
 }
