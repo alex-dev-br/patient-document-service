@@ -179,6 +179,12 @@ class OutboxFailureRetryIntegrationTest {
         assertThat(firstAttemptMessage.patientId())
                 .isEqualTo(patientId);
 
+        assertThat(firstAttemptMessage.fileUrl())
+                .isEqualTo(expectedFileUrl());
+
+        assertThat(firstAttemptMessage.contentType())
+                .isEqualTo("application/pdf");
+
         DocumentProcessingOutboxJpaEntity failedEvent =
                 findOutboxEvent();
 
@@ -262,6 +268,9 @@ class OutboxFailureRetryIntegrationTest {
                             "\"fileUrl\":\""
                                     + expectedFileUrl()
                                     + "\""
+                    )
+                    .contains(
+                            "\"contentType\":\"application/pdf\""
                     );
 
             DocumentProcessingOutboxJpaEntity publishedEvent =

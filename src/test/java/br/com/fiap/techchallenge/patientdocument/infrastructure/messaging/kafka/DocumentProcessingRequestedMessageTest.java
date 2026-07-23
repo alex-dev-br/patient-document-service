@@ -13,6 +13,13 @@ class DocumentProcessingRequestedMessageTest {
     private static final Instant OCCURRED_AT =
             Instant.parse("2026-07-22T03:00:00Z");
 
+    private static final String FILE_URL =
+            "https://patient-document-service:8443/"
+                    + "documents/documento/file";
+
+    private static final String CONTENT_TYPE =
+            "application/pdf";
+
     @Test
     void shouldCreateVersionOneMessage() {
         UUID eventId = UUID.randomUUID();
@@ -25,7 +32,8 @@ class DocumentProcessingRequestedMessageTest {
                         eventId,
                         documentId,
                         patientId,
-                        "/documentos/exame.pdf"
+                        FILE_URL,
+                        CONTENT_TYPE
                 );
 
         assertThat(message.schemaVersion())
@@ -49,7 +57,10 @@ class DocumentProcessingRequestedMessageTest {
                 .isEqualTo(patientId);
 
         assertThat(message.fileUrl())
-                .isEqualTo("/documentos/exame.pdf");
+                .isEqualTo(FILE_URL);
+
+        assertThat(message.contentType())
+                .isEqualTo(CONTENT_TYPE);
     }
 
     @Test
@@ -62,7 +73,8 @@ class DocumentProcessingRequestedMessageTest {
                         UUID.randomUUID(),
                         UUID.randomUUID(),
                         UUID.randomUUID(),
-                        "/documentos/exame.pdf"
+                        FILE_URL,
+                        CONTENT_TYPE
                 )
         )
                 .isInstanceOf(IllegalArgumentException.class)
@@ -82,7 +94,8 @@ class DocumentProcessingRequestedMessageTest {
                         UUID.randomUUID(),
                         UUID.randomUUID(),
                         UUID.randomUUID(),
-                        "/documentos/exame.pdf"
+                        FILE_URL,
+                        CONTENT_TYPE
                 )
         )
                 .isInstanceOf(IllegalArgumentException.class)
@@ -100,12 +113,71 @@ class DocumentProcessingRequestedMessageTest {
                                 UUID.randomUUID(),
                                 UUID.randomUUID(),
                                 UUID.randomUUID(),
-                                " "
+                                " ",
+                                CONTENT_TYPE
                         )
         )
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage(
                         "O fileUrl é obrigatório."
+                );
+    }
+
+    @Test
+    void shouldRejectNullContentType() {
+        assertThatThrownBy(
+                () -> DocumentProcessingRequestedMessage
+                        .versionOne(
+                                OCCURRED_AT,
+                                UUID.randomUUID(),
+                                UUID.randomUUID(),
+                                UUID.randomUUID(),
+                                FILE_URL,
+                                null
+                        )
+        )
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage(
+                        "O contentType é obrigatório."
+                );
+    }
+
+    @Test
+    void shouldRejectBlankContentType() {
+        assertThatThrownBy(
+                () -> DocumentProcessingRequestedMessage
+                        .versionOne(
+                                OCCURRED_AT,
+                                UUID.randomUUID(),
+                                UUID.randomUUID(),
+                                UUID.randomUUID(),
+                                FILE_URL,
+                                " "
+                        )
+        )
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage(
+                        "O contentType é obrigatório."
+                );
+    }
+
+    @Test
+    void shouldRejectContentTypeAboveMaximumLength() {
+        assertThatThrownBy(
+                () -> DocumentProcessingRequestedMessage
+                        .versionOne(
+                                OCCURRED_AT,
+                                UUID.randomUUID(),
+                                UUID.randomUUID(),
+                                UUID.randomUUID(),
+                                FILE_URL,
+                                "a".repeat(101)
+                        )
+        )
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage(
+                        "O contentType deve possuir no máximo "
+                                + "100 caracteres."
                 );
     }
 }

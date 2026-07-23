@@ -65,18 +65,29 @@ public class DocumentProcessingOutboxProcessor {
 
         outboxEvent.registerAttempt();
 
-        var message =
-                DocumentProcessingRequestedMessage.versionOne(
-                        outboxEvent.getCreatedAt()
-                                .atZone(SAO_PAULO_ZONE_ID)
-                                .toInstant(),
-                        outboxEvent.getEventId(),
-                        outboxEvent.getDocumentId(),
-                        outboxEvent.getPatientId(),
-                        buildFileUrl(outboxEvent.getDocumentId())
-                );
-
         try {
+            var document = healthDocumentJpaRepository
+                    .findById(outboxEvent.getDocumentId())
+                    .orElseThrow(
+                            () -> new IllegalStateException(
+                                    "Documento não encontrado para "
+                                            + "publicação da Outbox: "
+                                            + outboxEvent.getDocumentId()
+                            )
+                    );
+
+            var message =
+                    DocumentProcessingRequestedMessage.versionOne(
+                            outboxEvent.getCreatedAt()
+                                    .atZone(SAO_PAULO_ZONE_ID)
+                                    .toInstant(),
+                            outboxEvent.getEventId(),
+                            outboxEvent.getDocumentId(),
+                            outboxEvent.getPatientId(),
+                            document.getStoragePath(),
+                            document.getContentType()
+                    );
+
             kafkaTemplate.send(
                             topic,
                             outboxEvent.getDocumentId().toString(),
@@ -87,6 +98,7 @@ public class DocumentProcessingOutboxProcessor {
             outboxEvent.markPublished();
         } catch (InterruptedException exception) {
             Thread.currentThread().interrupt();
+
             outboxEvent.markFailed(
                     resolveErrorMessage(exception)
             );
@@ -97,17 +109,6 @@ public class DocumentProcessingOutboxProcessor {
                     resolveErrorMessage(exception)
             );
         }
-    }
-
-    private String buildFileUrl(UUID documentId) {
-        return healthDocumentJpaRepository
-                .findById(documentId)
-                .orElseThrow(
-                        () -> new RuntimeException(
-                                "Documento sem path"
-                        )
-                )
-                .getStoragePath();
     }
 
     private String resolveErrorMessage(Throwable throwable) {

@@ -17,6 +17,7 @@ import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.Map;
 import java.util.UUID;
@@ -53,6 +54,9 @@ public class DocumentProcessedInboxJpaEntity {
     @Column(name = "event_id", nullable = false)
     private UUID eventId;
 
+    @Column(name = "correlation_id")
+    private UUID correlationId;
+
     @Column(name = "document_id", nullable = false)
     private UUID documentId;
 
@@ -69,8 +73,15 @@ public class DocumentProcessedInboxJpaEntity {
     @Column(name = "external_document_type", length = 100)
     private String externalDocumentType;
 
+    @Column(name = "document_date")
+    private LocalDate documentDate;
+
     @Enumerated(EnumType.STRING)
-    @Column(name = "result_status", nullable = false, length = 30)
+    @Column(
+            name = "result_status",
+            nullable = false,
+            length = 30
+    )
     private DocumentProcessingStatus status;
 
     @JdbcTypeCode(SqlTypes.JSON)

@@ -36,17 +36,23 @@ public class ProcessedDocumentResultGatewayImpl
                         .schemaVersion(result.schemaVersion())
                         .occurredAt(result.occurredAt())
                         .eventId(result.eventId())
+                        .correlationId(result.correlationId())
                         .documentId(result.documentId())
                         .patientId(result.patientId())
-                        .externalResultId(result.externalResultId())
+                        .externalResultId(
+                                result.externalResultId()
+                        )
                         .externalDocumentType(
                                 result.externalDocumentType()
                         )
+                        .documentDate(result.documentDate())
                         .status(result.status())
                         .payload(result.payload())
                         .errorCode(result.errorCode())
                         .errorDetail(result.errorDetail())
-                        .errorRetryable(result.errorRetryable())
+                        .errorRetryable(
+                                result.errorRetryable()
+                        )
                         .receivedAt(result.receivedAt())
                         .build();
 
@@ -58,7 +64,9 @@ public class ProcessedDocumentResultGatewayImpl
             UUID documentId
     ) {
         return repository
-                .findByDocumentIdOrderByReceivedAtAsc(documentId)
+                .findByDocumentIdOrderByReceivedAtAsc(
+                        documentId
+                )
                 .stream()
                 .map(this::toDomain)
                 .toList();
@@ -72,10 +80,12 @@ public class ProcessedDocumentResultGatewayImpl
                 entity.getSchemaVersion(),
                 entity.getOccurredAt(),
                 entity.getEventId(),
+                entity.getCorrelationId(),
                 entity.getDocumentId(),
                 entity.getPatientId(),
                 entity.getExternalResultId(),
                 entity.getExternalDocumentType(),
+                entity.getDocumentDate(),
                 entity.getStatus(),
                 entity.getPayload(),
                 entity.getErrorCode(),

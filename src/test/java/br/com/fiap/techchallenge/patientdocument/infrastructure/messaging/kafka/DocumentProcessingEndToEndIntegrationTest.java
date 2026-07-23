@@ -318,6 +318,11 @@ class DocumentProcessingEndToEndIntegrationTest {
                         "\"fileUrl\":\""
                                 + expectedFileUrl()
                                 + "\""
+                )
+                .contains(
+                        "\"contentType\":\""
+                                + CONTENT_TYPE
+                                + "\""
                 );
     }
 

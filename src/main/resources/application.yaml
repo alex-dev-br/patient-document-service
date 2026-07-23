@@ -73,6 +73,8 @@ app:
         processing-requested: ${KAFKA_TOPIC_PROCESSING_REQUESTED:document-processing-requested}
         processed-response: ${KAFKA_TOPIC_PROCESSED_RESPONSE:document-processed-response}
         processed-response-dlt: ${KAFKA_TOPIC_PROCESSED_RESPONSE_DLT:document-processed-response-dlt}
+        processing-result: ${KAFKA_TOPIC_PROCESSING_RESULT:document-processing-result}
+        processing-result-dlt: ${KAFKA_TOPIC_PROCESSING_RESULT_DLT:document-processing-result-dlt}
 
       document-file-base-url: ${DOCUMENT_FILE_BASE_URL:http://localhost:8080}
       max-attempts: ${KAFKA_OUTBOX_MAX_ATTEMPTS:5}
