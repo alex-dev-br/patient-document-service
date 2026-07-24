@@ -4,7 +4,9 @@ import br.com.fiap.techchallenge.patientdocument.application.common.pagination.P
 import br.com.fiap.techchallenge.patientdocument.application.common.pagination.PagedResult;
 import br.com.fiap.techchallenge.patientdocument.application.document.gateway.HealthDocumentGateway;
 import br.com.fiap.techchallenge.patientdocument.application.document.query.HealthDocumentFilter;
+import br.com.fiap.techchallenge.patientdocument.application.document.query.HealthDocumentSort;
 import br.com.fiap.techchallenge.patientdocument.domain.document.HealthDocument;
+import jakarta.persistence.criteria.Expression;
 import jakarta.persistence.criteria.Predicate;
 import jakarta.persistence.criteria.Root;
 import jakarta.persistence.criteria.Subquery;
@@ -17,43 +19,73 @@ import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 
 @Component
 @RequiredArgsConstructor
-public class HealthDocumentGatewayImpl implements HealthDocumentGateway {
+public class HealthDocumentGatewayImpl
+        implements HealthDocumentGateway {
 
-    private final HealthDocumentJpaRepository healthDocumentJpaRepository;
-    private final DocumentKeywordJpaRepository documentKeywordJpaRepository;
-    private final HealthDocumentPersistenceMapper healthDocumentPersistenceMapper;
+    private final HealthDocumentJpaRepository
+            healthDocumentJpaRepository;
+
+    private final DocumentKeywordJpaRepository
+            documentKeywordJpaRepository;
+
+    private final HealthDocumentPersistenceMapper
+            healthDocumentPersistenceMapper;
 
     @Override
-    public HealthDocument save(HealthDocument document) {
-        HealthDocumentJpaEntity entity = healthDocumentPersistenceMapper.toEntity(document);
-        HealthDocumentJpaEntity savedEntity = healthDocumentJpaRepository.save(entity);
+    public HealthDocument save(
+            HealthDocument document
+    ) {
+        HealthDocumentJpaEntity entity =
+                healthDocumentPersistenceMapper.toEntity(
+                        document
+                );
 
-        documentKeywordJpaRepository.deleteByDocumentId(savedEntity.getId());
+        HealthDocumentJpaEntity savedEntity =
+                healthDocumentJpaRepository.save(
+                        entity
+                );
 
-        List<DocumentKeywordJpaEntity> keywordEntities = document.getKeywords()
-                .stream()
-                .filter(keyword -> keyword != null && !keyword.isBlank())
-                .distinct()
-                .map(keyword -> DocumentKeywordJpaEntity.builder()
-                        .id(UUID.randomUUID())
-                        .documentId(savedEntity.getId())
-                        .keyword(keyword)
-                        .build())
-                .toList();
+        documentKeywordJpaRepository.deleteByDocumentId(
+                savedEntity.getId()
+        );
+
+        List<DocumentKeywordJpaEntity> keywordEntities =
+                document.getKeywords()
+                        .stream()
+                        .filter(keyword ->
+                                keyword != null &&
+                                        !keyword.isBlank()
+                        )
+                        .distinct()
+                        .map(keyword ->
+                                DocumentKeywordJpaEntity.builder()
+                                        .id(UUID.randomUUID())
+                                        .documentId(
+                                                savedEntity.getId()
+                                        )
+                                        .keyword(keyword)
+                                        .build()
+                        )
+                        .toList();
 
         if (!keywordEntities.isEmpty()) {
-            documentKeywordJpaRepository.saveAll(keywordEntities);
+            documentKeywordJpaRepository.saveAll(
+                    keywordEntities
+            );
         }
 
         return healthDocumentPersistenceMapper.toDomain(
                 savedEntity,
                 keywordEntities.stream()
-                        .map(DocumentKeywordJpaEntity::getKeyword)
+                        .map(
+                                DocumentKeywordJpaEntity::getKeyword
+                        )
                         .toList()
         );
     }
@@ -64,14 +96,55 @@ public class HealthDocumentGatewayImpl implements HealthDocumentGateway {
             HealthDocumentFilter filter,
             PageQuery pageQuery
     ) {
-        Specification<HealthDocumentJpaEntity> specification =
-                buildSpecification(patientId, filter);
-
-        PageRequest pageable = PageRequest.of(
-                pageQuery.page(),
-                pageQuery.size(),
-                Sort.by(Sort.Direction.DESC, "createdAt")
+        return findByPatientId(
+                patientId,
+                filter,
+                pageQuery,
+                HealthDocumentSort.CREATED_AT_DESC
         );
+    }
+
+    @Override
+    public PagedResult<HealthDocument> findByPatientId(
+            UUID patientId,
+            HealthDocumentFilter filter,
+            PageQuery pageQuery,
+            HealthDocumentSort sort
+    ) {
+        Objects.requireNonNull(
+                sort,
+                "A ordenação dos documentos é obrigatória."
+        );
+
+        Specification<HealthDocumentJpaEntity> specification =
+                buildSpecification(
+                        patientId,
+                        filter
+                );
+
+        PageRequest pageable;
+
+        if (sort == HealthDocumentSort.TIMELINE_DESC) {
+            specification =
+                    specification.and(
+                            buildTimelineOrderSpecification()
+                    );
+
+            pageable = PageRequest.of(
+                    pageQuery.page(),
+                    pageQuery.size()
+            );
+        }
+        else {
+            pageable = PageRequest.of(
+                    pageQuery.page(),
+                    pageQuery.size(),
+                    Sort.by(
+                            Sort.Order.desc("createdAt"),
+                            Sort.Order.desc("id")
+                    )
+            );
+        }
 
         Page<HealthDocumentJpaEntity> entityPage =
                 healthDocumentJpaRepository.findAll(
@@ -80,7 +153,9 @@ public class HealthDocumentGatewayImpl implements HealthDocumentGateway {
                 );
 
         List<HealthDocument> content =
-                toDomainList(entityPage.getContent());
+                toDomainList(
+                        entityPage.getContent()
+                );
 
         return new PagedResult<>(
                 content,
@@ -94,122 +169,272 @@ public class HealthDocumentGatewayImpl implements HealthDocumentGateway {
     }
 
     @Override
-    public Optional<HealthDocument> findById(UUID id) {
+    public Optional<HealthDocument> findById(
+            UUID id
+    ) {
         return healthDocumentJpaRepository.findById(id)
                 .map(entity -> {
-                    List<String> keywords = documentKeywordJpaRepository.findByDocumentId(entity.getId())
-                            .stream()
-                            .map(DocumentKeywordJpaEntity::getKeyword)
-                            .toList();
+                    List<String> keywords =
+                            documentKeywordJpaRepository
+                                    .findByDocumentId(
+                                            entity.getId()
+                                    )
+                                    .stream()
+                                    .map(
+                                            DocumentKeywordJpaEntity::getKeyword
+                                    )
+                                    .toList();
 
-                    return healthDocumentPersistenceMapper.toDomain(entity, keywords);
+                    return healthDocumentPersistenceMapper
+                            .toDomain(
+                                    entity,
+                                    keywords
+                            );
                 });
     }
 
     @Override
-    public List<HealthDocument> findByPatientId(UUID patientId) {
-        return findByPatientId(patientId, HealthDocumentFilter.empty());
+    public List<HealthDocument> findByPatientId(
+            UUID patientId
+    ) {
+        return findByPatientId(
+                patientId,
+                HealthDocumentFilter.empty()
+        );
     }
 
     @Override
-    public List<HealthDocument> findByPatientId(UUID patientId, HealthDocumentFilter filter) {
-        Specification<HealthDocumentJpaEntity> specification = buildSpecification(patientId, filter);
+    public List<HealthDocument> findByPatientId(
+            UUID patientId,
+            HealthDocumentFilter filter
+    ) {
+        Specification<HealthDocumentJpaEntity> specification =
+                buildSpecification(
+                        patientId,
+                        filter
+                );
 
-        List<HealthDocumentJpaEntity> entities = healthDocumentJpaRepository.findAll(
-                specification,
-                Sort.by(Sort.Direction.DESC, "createdAt")
-        );
+        List<HealthDocumentJpaEntity> entities =
+                healthDocumentJpaRepository.findAll(
+                        specification,
+                        Sort.by(
+                                Sort.Order.desc("createdAt"),
+                                Sort.Order.desc("id")
+                        )
+                );
 
         return toDomainList(entities);
     }
 
-    private Specification<HealthDocumentJpaEntity> buildSpecification(
+    private Specification<HealthDocumentJpaEntity>
+    buildSpecification(
             UUID patientId,
             HealthDocumentFilter filter
     ) {
-        return (root, query, criteriaBuilder) -> {
-            List<Predicate> predicates = new ArrayList<>();
+        return (
+                root,
+                query,
+                criteriaBuilder
+        ) -> {
+            List<Predicate> predicates =
+                    new ArrayList<>();
 
-            predicates.add(criteriaBuilder.equal(root.get("patientId"), patientId));
+            predicates.add(
+                    criteriaBuilder.equal(
+                            root.get("patientId"),
+                            patientId
+                    )
+            );
 
             if (filter.documentType() != null) {
-                predicates.add(criteriaBuilder.equal(
-                        root.get("documentType"),
-                        filter.documentType().name()
-                ));
+                predicates.add(
+                        criteriaBuilder.equal(
+                                root.get("documentType"),
+                                filter.documentType().name()
+                        )
+                );
             }
 
             if (filter.specialty() != null) {
-                predicates.add(criteriaBuilder.equal(
-                        root.get("specialty"),
-                        filter.specialty().name()
-                ));
+                predicates.add(
+                        criteriaBuilder.equal(
+                                root.get("specialty"),
+                                filter.specialty().name()
+                        )
+                );
             }
 
             if (filter.status() != null) {
-                predicates.add(criteriaBuilder.equal(
-                        root.get("processingStatus"),
-                        filter.status().name()
-                ));
+                predicates.add(
+                        criteriaBuilder.equal(
+                                root.get("processingStatus"),
+                                filter.status().name()
+                        )
+                );
             }
 
             if (filter.startDate() != null) {
-                predicates.add(criteriaBuilder.greaterThanOrEqualTo(
-                        root.get("documentDate"),
-                        filter.startDate()
-                ));
+                predicates.add(
+                        criteriaBuilder.greaterThanOrEqualTo(
+                                root.get("documentDate"),
+                                filter.startDate()
+                        )
+                );
             }
 
             if (filter.endDate() != null) {
-                predicates.add(criteriaBuilder.lessThanOrEqualTo(
-                        root.get("documentDate"),
-                        filter.endDate()
-                ));
+                predicates.add(
+                        criteriaBuilder.lessThanOrEqualTo(
+                                root.get("documentDate"),
+                                filter.endDate()
+                        )
+                );
             }
 
             if (filter.keyword() != null) {
-                Subquery<UUID> subquery = query.subquery(UUID.class);
-                Root<DocumentKeywordJpaEntity> keywordRoot = subquery.from(DocumentKeywordJpaEntity.class);
+                Subquery<UUID> subquery =
+                        query.subquery(UUID.class);
 
-                subquery.select(keywordRoot.get("documentId"))
+                Root<DocumentKeywordJpaEntity> keywordRoot =
+                        subquery.from(
+                                DocumentKeywordJpaEntity.class
+                        );
+
+                subquery.select(
+                                keywordRoot.get("documentId")
+                        )
                         .where(
-                                criteriaBuilder.equal(keywordRoot.get("documentId"), root.get("id")),
+                                criteriaBuilder.equal(
+                                        keywordRoot.get(
+                                                "documentId"
+                                        ),
+                                        root.get("id")
+                                ),
                                 criteriaBuilder.like(
-                                        criteriaBuilder.lower(keywordRoot.get("keyword")),
-                                        "%" + filter.keyword().toLowerCase() + "%"
+                                        criteriaBuilder.lower(
+                                                keywordRoot.get(
+                                                        "keyword"
+                                                )
+                                        ),
+                                        "%" +
+                                                filter.keyword()
+                                                        .toLowerCase() +
+                                                "%"
                                 )
                         );
 
-                predicates.add(criteriaBuilder.exists(subquery));
+                predicates.add(
+                        criteriaBuilder.exists(
+                                subquery
+                        )
+                );
             }
 
-            return criteriaBuilder.and(predicates.toArray(Predicate[]::new));
+            return criteriaBuilder.and(
+                    predicates.toArray(
+                            Predicate[]::new
+                    )
+            );
         };
     }
 
-    private List<HealthDocument> toDomainList(List<HealthDocumentJpaEntity> entities) {
-        List<UUID> documentIds = entities.stream()
-                .map(HealthDocumentJpaEntity::getId)
-                .toList();
+    private Specification<HealthDocumentJpaEntity>
+    buildTimelineOrderSpecification() {
+        return (
+                root,
+                query,
+                criteriaBuilder
+        ) -> {
+            Class<?> resultType =
+                    query.getResultType();
+
+            boolean countQuery =
+                    Long.class.equals(resultType) ||
+                            long.class.equals(resultType);
+
+            if (!countQuery) {
+                Expression<Integer> missingDocumentDate =
+                        criteriaBuilder.<Integer>selectCase()
+                                .when(
+                                        criteriaBuilder.isNull(
+                                                root.get(
+                                                        "documentDate"
+                                                )
+                                        ),
+                                        1
+                                )
+                                .otherwise(0);
+
+                query.orderBy(
+                        criteriaBuilder.asc(
+                                missingDocumentDate
+                        ),
+                        criteriaBuilder.desc(
+                                root.get("documentDate")
+                        ),
+                        criteriaBuilder.desc(
+                                root.get("createdAt")
+                        ),
+                        criteriaBuilder.desc(
+                                root.get("id")
+                        )
+                );
+            }
+
+            return criteriaBuilder.conjunction();
+        };
+    }
+
+    private List<HealthDocument> toDomainList(
+            List<HealthDocumentJpaEntity> entities
+    ) {
+        List<UUID> documentIds =
+                entities.stream()
+                        .map(
+                                HealthDocumentJpaEntity::getId
+                        )
+                        .toList();
 
         if (documentIds.isEmpty()) {
             return List.of();
         }
 
-        List<DocumentKeywordJpaEntity> keywords = documentKeywordJpaRepository.findByDocumentIdIn(documentIds);
+        List<DocumentKeywordJpaEntity> keywords =
+                documentKeywordJpaRepository
+                        .findByDocumentIdIn(
+                                documentIds
+                        );
 
-        var keywordsByDocumentId = keywords.stream()
-                .collect(java.util.stream.Collectors.groupingBy(DocumentKeywordJpaEntity::getDocumentId));
+        var keywordsByDocumentId =
+                keywords.stream()
+                        .collect(
+                                java.util.stream.Collectors
+                                        .groupingBy(
+                                                DocumentKeywordJpaEntity
+                                                        ::getDocumentId
+                                        )
+                        );
 
         return entities.stream()
                 .map(entity -> {
-                    List<String> documentKeywords = keywordsByDocumentId
-                            .getOrDefault(entity.getId(), List.of())
-                            .stream()
-                            .map(DocumentKeywordJpaEntity::getKeyword)
-                            .toList();
+                    List<String> documentKeywords =
+                            keywordsByDocumentId
+                                    .getOrDefault(
+                                            entity.getId(),
+                                            List.of()
+                                    )
+                                    .stream()
+                                    .map(
+                                            DocumentKeywordJpaEntity
+                                                    ::getKeyword
+                                    )
+                                    .toList();
 
-                    return healthDocumentPersistenceMapper.toDomain(entity, documentKeywords);
+                    return healthDocumentPersistenceMapper
+                            .toDomain(
+                                    entity,
+                                    documentKeywords
+                            );
                 })
                 .toList();
     }
