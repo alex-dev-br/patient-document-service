@@ -4,6 +4,7 @@ import br.com.fiap.techchallenge.patientdocument.application.common.pagination.P
 import br.com.fiap.techchallenge.patientdocument.application.common.pagination.PagedResult;
 import br.com.fiap.techchallenge.patientdocument.application.document.gateway.HealthDocumentGateway;
 import br.com.fiap.techchallenge.patientdocument.application.document.query.HealthDocumentFilter;
+import br.com.fiap.techchallenge.patientdocument.application.document.query.HealthDocumentSort;
 import br.com.fiap.techchallenge.patientdocument.application.exception.ResourceNotFoundException;
 import br.com.fiap.techchallenge.patientdocument.application.patient.gateway.PatientGateway;
 import br.com.fiap.techchallenge.patientdocument.domain.document.HealthDocument;
@@ -23,7 +24,10 @@ public class ListPatientDocumentsUseCase {
 
     @Transactional(readOnly = true)
     public List<HealthDocument> execute(UUID patientId) {
-        return execute(patientId, HealthDocumentFilter.empty());
+        return execute(
+                patientId,
+                HealthDocumentFilter.empty()
+        );
     }
 
     @Transactional(readOnly = true)
@@ -32,7 +36,10 @@ public class ListPatientDocumentsUseCase {
             HealthDocumentFilter filter
     ) {
         HealthDocumentFilter validatedFilter =
-                validateAndNormalize(patientId, filter);
+                validateAndNormalize(
+                        patientId,
+                        filter
+                );
 
         return healthDocumentGateway.findByPatientId(
                 patientId,
@@ -46,8 +53,26 @@ public class ListPatientDocumentsUseCase {
             HealthDocumentFilter filter,
             PageQuery pageQuery
     ) {
+        return execute(
+                patientId,
+                filter,
+                pageQuery,
+                HealthDocumentSort.CREATED_AT_DESC
+        );
+    }
+
+    @Transactional(readOnly = true)
+    public PagedResult<HealthDocument> execute(
+            UUID patientId,
+            HealthDocumentFilter filter,
+            PageQuery pageQuery,
+            HealthDocumentSort sort
+    ) {
         HealthDocumentFilter validatedFilter =
-                validateAndNormalize(patientId, filter);
+                validateAndNormalize(
+                        patientId,
+                        filter
+                );
 
         if (pageQuery == null) {
             throw new IllegalArgumentException(
@@ -55,10 +80,17 @@ public class ListPatientDocumentsUseCase {
             );
         }
 
+        if (sort == null) {
+            throw new IllegalArgumentException(
+                    "A ordenação dos documentos é obrigatória."
+            );
+        }
+
         return healthDocumentGateway.findByPatientId(
                 patientId,
                 validatedFilter,
-                pageQuery
+                pageQuery,
+                sort
         );
     }
 
@@ -69,13 +101,15 @@ public class ListPatientDocumentsUseCase {
         patientGateway.findById(patientId)
                 .orElseThrow(() ->
                         new ResourceNotFoundException(
-                                "Paciente não encontrado: " + patientId
+                                "Paciente não encontrado: " +
+                                        patientId
                         )
                 );
 
-        HealthDocumentFilter normalizedFilter = filter == null
-                ? HealthDocumentFilter.empty()
-                : filter;
+        HealthDocumentFilter normalizedFilter =
+                filter == null
+                        ? HealthDocumentFilter.empty()
+                        : filter;
 
         if (normalizedFilter.hasInvalidDateRange()) {
             throw new IllegalArgumentException(

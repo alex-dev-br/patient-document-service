@@ -255,7 +255,13 @@ public class PatientDocumentController {
     @Operation(
             operationId = "getPatientTimeline",
             summary = "Consultar timeline do paciente",
-            description = "Retorna a timeline dos documentos do paciente em ordem decrescente."
+            description = """
+                    Retorna a timeline paginada dos documentos do paciente.
+                    A consulta aceita os mesmos filtros da listagem de documentos.
+                    Os registros são ordenados pela data do documento em ordem
+                    decrescente. Documentos sem essa data são organizados pela
+                    data de criação.
+                    """
     )
     @ApiResponses({
             @ApiResponse(
@@ -263,19 +269,144 @@ public class PatientDocumentController {
                     description = "Timeline retornada com sucesso"
             ),
             @ApiResponse(
+                    responseCode = "400",
+                    description = "Filtro ou paginação inválidos",
+                    content = @Content(
+                            mediaType =
+                                    MediaType.APPLICATION_PROBLEM_JSON_VALUE,
+                            schema = @Schema(
+                                    implementation = ProblemDetail.class
+                            )
+                    )
+            ),
+            @ApiResponse(
                     responseCode = "404",
                     description = "Paciente não encontrado",
                     content = @Content(
-                            mediaType = MediaType.APPLICATION_PROBLEM_JSON_VALUE,
-                            schema = @Schema(implementation = ProblemDetail.class)
+                            mediaType =
+                                    MediaType.APPLICATION_PROBLEM_JSON_VALUE,
+                            schema = @Schema(
+                                    implementation = ProblemDetail.class
+                            )
                     )
             )
     })
-    public ResponseEntity<List<PatientTimelineItemResponse>> timeline(@PathVariable UUID patientId) {
-        List<PatientTimelineItemResponse> response = getPatientTimelineUseCase.execute(patientId)
-                .stream()
-                .map(healthDocumentWebMapper::toTimelineItemResponse)
-                .toList();
+    public ResponseEntity<
+            PagedResponse<PatientTimelineItemResponse>
+            > timeline(
+            @PathVariable UUID patientId,
+
+            @Parameter(
+                    description = "Tipo do documento",
+                    example = "EXAME_LABORATORIAL"
+            )
+            @RequestParam(required = false)
+            String documentType,
+
+            @Parameter(
+                    description = "Especialidade médica",
+                    example = "ENDOCRINOLOGIA"
+            )
+            @RequestParam(required = false)
+            String specialty,
+
+            @Parameter(
+                    description = "Status de processamento",
+                    example = "PROCESSED"
+            )
+            @RequestParam(required = false)
+            String status,
+
+            @Parameter(
+                    description =
+                            "Palavra-chave associada ao documento",
+                    example = "glicemia"
+            )
+            @RequestParam(required = false)
+            String keyword,
+
+            @Parameter(
+                    description = "Data inicial do documento",
+                    example = "2026-01-01"
+            )
+            @RequestParam(required = false)
+            LocalDate startDate,
+
+            @Parameter(
+                    description = "Data final do documento",
+                    example = "2026-12-31"
+            )
+            @RequestParam(required = false)
+            LocalDate endDate,
+
+            @Parameter(
+                    description =
+                            "Número da página, começando em zero",
+                    example = "0",
+                    schema = @Schema(
+                            type = "integer",
+                            format = "int32",
+                            minimum = "0",
+                            defaultValue = "0"
+                    )
+            )
+            @RequestParam(defaultValue = "0")
+            int page,
+
+            @Parameter(
+                    description =
+                            "Quantidade de documentos por página",
+                    example = "10",
+                    schema = @Schema(
+                            type = "integer",
+                            format = "int32",
+                            minimum = "1",
+                            maximum = "100",
+                            defaultValue = "10"
+                    )
+            )
+            @RequestParam(defaultValue = "10")
+            int size
+    ) {
+        HealthDocumentFilter filter =
+                healthDocumentWebMapper.toFilter(
+                        documentType,
+                        specialty,
+                        status,
+                        keyword,
+                        startDate,
+                        endDate
+                );
+
+        PagedResult<HealthDocument> result =
+                getPatientTimelineUseCase.execute(
+                        patientId,
+                        filter,
+                        new PageQuery(
+                                page,
+                                size
+                        )
+                );
+
+        List<PatientTimelineItemResponse> content =
+                result.content()
+                        .stream()
+                        .map(
+                                healthDocumentWebMapper
+                                        ::toTimelineItemResponse
+                        )
+                        .toList();
+
+        PagedResponse<PatientTimelineItemResponse> response =
+                new PagedResponse<>(
+                        content,
+                        result.page(),
+                        result.size(),
+                        result.totalElements(),
+                        result.totalPages(),
+                        result.first(),
+                        result.last()
+                );
 
         return ResponseEntity.ok(response);
     }
